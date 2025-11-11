@@ -1,0 +1,62 @@
+[tool.poetry]
+name = "abs-worker"
+version = "0.1.0"
+description = "Background task processor for blockchain operations in abs_notary"
+authors = ["ingmarAvocado <your.email@example.com>"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/ingmarAvocado/abs_worker"
+repository = "https://github.com/ingmarAvocado/abs_worker"
+packages = [{include = "abs_worker", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# Core async support
+pydantic = {extras = ["email"], version = "^2.5.0"}
+pydantic-settings = "^2.1.0"
+python-dotenv = "^1.0.0"
+
+# Background task processing (start with FastAPI BackgroundTasks, add Celery later)
+# celery = {extras = ["redis"], version = "^5.3.0", optional = true}
+# redis = {version = "^5.0.0", optional = true}
+
+# abs_notary dependencies (local development paths)
+# In production, these would be installed from GitHub or PyPI
+# abs-orm = {path = "../abs_orm", develop = true}
+# abs-blockchain = {path = "../abs_blockchain", develop = true}
+# abs-utils = {path = "../abs_utils", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.0"
+pytest-cov = "^4.1.0"
+pytest-xdist = "^3.5.0"
+black = "^23.0.0"
+ruff = "^0.1.0"
+mypy = "^1.7.0"
+
+# Optional extras for production
+[tool.poetry.extras]
+celery = ["celery", "redis"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
