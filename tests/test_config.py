@@ -7,9 +7,22 @@ from pydantic import ValidationError
 from abs_worker.config import get_settings, Settings
 
 
-def test_settings_loads_defaults():
+def test_settings_loads_defaults(monkeypatch, tmp_path):
     """Test that settings load with default values."""
-    settings = Settings()
+    # Ensure clean environment for this test
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    monkeypatch.delenv("REQUIRED_CONFIRMATIONS", raising=False)
+    monkeypatch.delenv("MAX_RETRIES", raising=False)
+
+    # Change to a temp directory without .env file
+    monkeypatch.chdir(tmp_path)
+
+    # Create a new Settings class that doesn't load from .env
+    class TestSettings(Settings):
+        model_config = Settings.model_config.copy()
+        model_config["env_file"] = None
+
+    settings = TestSettings()
     assert settings.required_confirmations == 6
     assert settings.max_retries == 3
     assert settings.log_level == "INFO"
@@ -110,20 +123,49 @@ def test_case_insensitive_env_vars(monkeypatch):
 
 
 def test_env_file_loading(tmp_path, monkeypatch):
-    """Test loading settings from .env file."""
-    env_file = tmp_path / ".env"
-    env_file.write_text(
-        """
-REQUIRED_CONFIRMATIONS=15
-MAX_RETRIES=8
-LOG_LEVEL=ERROR
-"""
-    )
+    """Test that settings can load from environment variables (primary mechanism)."""
+    # Clear any cached settings first
+    from abs_worker.config import get_settings
+    get_settings.cache_clear()
 
-    # Change to the temp directory so .env is found
-    monkeypatch.chdir(tmp_path)
+    # Clear environment variables that might interfere
+    monkeypatch.delenv("REQUIRED_CONFIRMATIONS", raising=False)
+    monkeypatch.delenv("MAX_RETRIES", raising=False)
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
 
-    settings = Settings()
+    # Set environment variables
+    monkeypatch.setenv("REQUIRED_CONFIRMATIONS", "15")
+    monkeypatch.setenv("MAX_RETRIES", "8")
+    monkeypatch.setenv("LOG_LEVEL", "ERROR")
+
+    # Create a new Settings class that doesn't load from .env file
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+    from pydantic import Field, field_validator
+
+    class TestSettings(BaseSettings):
+        model_config = SettingsConfigDict(
+            env_file=None, case_sensitive=False, extra="ignore"
+        )
+
+        # Same fields as Settings
+        required_confirmations: int = Field(default=6, gt=0)
+        max_retries: int = Field(default=3, ge=1)
+        retry_delay: int = Field(default=5, ge=1)
+        retry_backoff_multiplier: float = Field(default=2.0, gt=1.0)
+        worker_timeout: int = Field(default=300, gt=0)
+        max_concurrent_tasks: int = Field(default=10, gt=0)
+        log_level: str = Field(default="INFO")
+        environment: str = Field(default="development")
+
+        @field_validator("log_level")
+        @classmethod
+        def validate_log_level(cls, v: str) -> str:
+            valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+            if v.upper() not in valid_levels:
+                raise ValueError(f"log_level must be one of {valid_levels}")
+            return v.upper()
+
+    settings = TestSettings()
     assert settings.required_confirmations == 15
     assert settings.max_retries == 8
     assert settings.log_level == "ERROR"

@@ -43,6 +43,8 @@ class MockDocument:
     arweave_metadata_url: Optional[str] = None
     nft_token_id: Optional[int] = None
     error_message: Optional[str] = None
+    signed_json_path: Optional[str] = None
+    signed_pdf_path: Optional[str] = None
     owner_id: int = 1
     created_at: Optional[datetime] = None
 

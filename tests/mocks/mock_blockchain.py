@@ -39,6 +39,13 @@ class NetworkTimeoutException(BlockchainException):
     pass
 
 
+class NotarizationResult:
+    """Mock result object returned by notarize_hash"""
+
+    def __init__(self, transaction_hash: str):
+        self.transaction_hash = transaction_hash
+
+
 class MockBlockchain:
     """Mock blockchain interface matching abs_blockchain interface"""
 
@@ -47,8 +54,8 @@ class MockBlockchain:
         self.next_tx_id = 1000
         self.current_block = 12345678
 
-    async def record_hash(self, file_hash: str, metadata: dict) -> str:
-        """Mock record_hash - returns fake transaction hash"""
+    async def notarize_hash(self, file_hash: str, metadata: dict) -> NotarizationResult:
+        """Mock notarize_hash - returns NotarizationResult object"""
         tx_hash = f"0x{self.next_tx_id:064x}"
         self.next_tx_id += 1
 
@@ -60,7 +67,12 @@ class MockBlockchain:
             "status": 1,  # Success
         }
 
-        return tx_hash
+        return NotarizationResult(tx_hash)
+
+    async def record_hash(self, file_hash: str, metadata: dict) -> str:
+        """Mock record_hash - returns fake transaction hash (deprecated, use notarize_hash)"""
+        result = await self.notarize_hash(file_hash, metadata)
+        return result.transaction_hash
 
     async def mint_nft(self, owner_address: str, token_id: int, metadata_url: str) -> str:
         """Mock mint_nft - returns fake transaction hash"""

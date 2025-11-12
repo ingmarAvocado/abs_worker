@@ -7,11 +7,15 @@ This module contains the business logic for:
 - Document status transitions
 """
 
-# from abs_orm import get_session, DocumentRepository, DocStatus
-# from abs_blockchain import record_hash, mint_nft, upload_to_arweave
-# from abs_utils.logger import get_logger
+from abs_orm import get_session, DocumentRepository, DocStatus
+from abs_blockchain import BlockchainClient
+from abs_utils.logger import get_logger
+from .config import get_settings
+from .monitoring import monitor_transaction
+from .certificates import generate_signed_json, generate_signed_pdf
+from .error_handler import handle_failed_transaction
 
-# logger = get_logger(__name__)
+logger = get_logger(__name__)
 
 
 async def process_hash_notarization(doc_id: int) -> None:
@@ -33,56 +37,59 @@ async def process_hash_notarization(doc_id: int) -> None:
     Raises:
         Exception: If transaction permanently fails after all retries
     """
-    # TODO: Implement when abs_orm and abs_blockchain are available
-    # settings = get_settings()
-    # logger.info(f"Starting hash notarization for document {doc_id}")
+    settings = get_settings()
+    logger.info(f"Starting hash notarization for document {doc_id}", extra={"doc_id": doc_id})
 
-    # try:
-    #     async with get_session() as session:
-    #         doc_repo = DocumentRepository(session)
-    #         doc = await doc_repo.get(doc_id)
+    try:
+        async with get_session() as session:
+            doc_repo = DocumentRepository(session)
+            doc = await doc_repo.get(doc_id)
 
-    #         if not doc:
-    #             raise ValueError(f"Document {doc_id} not found")
+            if not doc:
+                raise ValueError(f"Document {doc_id} not found")
 
-    #         # Update status to PROCESSING
-    #         await doc_repo.update_status(doc_id, DocStatus.PROCESSING)
-    #         await session.commit()
+            # Update status to PROCESSING
+            await doc_repo.update(doc_id, status=DocStatus.PROCESSING)
+            await session.commit()
+            logger.info(f"Document {doc_id} status updated to PROCESSING", extra={"doc_id": doc_id})
 
-    #         # Record hash on blockchain
-    #         tx_hash = await record_hash(
-    #             file_hash=doc.file_hash,
-    #             metadata={
-    #                 "file_name": doc.file_name,
-    #                 "timestamp": doc.created_at.isoformat()
-    #             }
-    #         )
+            # Record hash on blockchain
+            client = BlockchainClient()
+            result = await client.notarize_hash(
+                file_hash=doc.file_hash,
+                metadata={
+                    "file_name": doc.file_name,
+                    "timestamp": doc.created_at.isoformat()
+                }
+            )
+            tx_hash = result.transaction_hash
+            logger.info(f"Hash recorded on blockchain for document {doc_id}", extra={"doc_id": doc_id, "tx_hash": tx_hash})
 
-    #         # Monitor transaction
-    #         await monitor_transaction(doc_id, tx_hash)
+            # Monitor transaction
+            await monitor_transaction(doc_id, tx_hash)
+            logger.info(f"Transaction confirmed for document {doc_id}", extra={"doc_id": doc_id, "tx_hash": tx_hash})
 
-    #         # Generate certificates
-    #         json_path = await generate_signed_json(doc) if settings.cert_json_enabled else None
-    #         pdf_path = await generate_signed_pdf(doc) if settings.cert_pdf_enabled else None
+            # Generate certificates
+            json_path = await generate_signed_json(doc)
+            pdf_path = await generate_signed_pdf(doc)
+            logger.info(f"Certificates generated for document {doc_id}", extra={"doc_id": doc_id, "json_path": json_path, "pdf_path": pdf_path})
 
-    #         # Mark as on-chain
-    #         await doc_repo.mark_as_on_chain(
-    #             doc_id,
-    #             transaction_hash=tx_hash,
-    #             signed_json_path=json_path,
-    #             signed_pdf_path=pdf_path
-    #         )
-    #         await session.commit()
+            # Mark as on-chain
+            await doc_repo.update(
+                doc_id,
+                status=DocStatus.ON_CHAIN,
+                transaction_hash=tx_hash,
+                signed_json_path=json_path,
+                signed_pdf_path=pdf_path
+            )
+            await session.commit()
 
-    #         logger.info(f"Hash notarization completed for document {doc_id}")
+            logger.info(f"Hash notarization completed for document {doc_id}", extra={"doc_id": doc_id})
 
-    # except Exception as e:
-    #     logger.error(f"Hash notarization failed for document {doc_id}: {e}")
-    #     await handle_failed_transaction(doc_id, e)
-    #     raise
-
-    # Stub implementation
-    pass
+    except Exception as e:
+        logger.error(f"Hash notarization failed for document {doc_id}: {e}", extra={"doc_id": doc_id, "error": str(e)})
+        await handle_failed_transaction(doc_id, e)
+        raise
 
 
 async def process_nft_notarization(doc_id: int) -> None:

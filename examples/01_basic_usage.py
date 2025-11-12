@@ -134,6 +134,85 @@ async def error_handling_example():
         logger.error("Configuration error", extra=e.to_dict())
 
 
+async def hash_notarization_workflow():
+    """
+    Demonstrate complete hash notarization workflow using abs_worker
+    """
+    print("=== Hash Notarization Workflow Example ===\n")
+
+    from abs_worker.notarization import process_hash_notarization
+    from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, DocType, get_session
+    from tests.mocks.mock_blockchain import MockBlockchain
+    from tests.mocks.mock_utils import get_logger
+
+    logger = get_logger("notarization_example")
+
+    # Create a document repository and add a test document
+    repo = MockDocumentRepository()
+    doc = repo.create({
+        'file_name': 'contract.pdf',
+        'file_hash': '0xabcdef123456789',
+        'file_path': '/tmp/contract.pdf'
+    })
+    print(f"Created document: {doc.file_name} (ID: {doc.id})")
+    print(f"Initial status: {doc.status.value}\n")
+
+    # Mock the blockchain and other dependencies for demonstration
+    # In real usage, these would be the actual abs_* libraries
+    blockchain = MockBlockchain()
+
+    # Simulate the workflow (in real usage, this would be called from FastAPI background task)
+    print("Starting hash notarization process...")
+    logger.info("Beginning hash notarization workflow", extra={"doc_id": doc.id})
+
+    try:
+        # This would normally be called as: await process_hash_notarization(doc.id)
+        # But for demo purposes, we'll simulate the steps
+
+        # Step 1: Update status to PROCESSING
+        updated_doc = await repo.update(doc.id, status=DocStatus.PROCESSING)
+        print(f"✓ Status updated to: {updated_doc.status.value}")
+
+        # Step 2: Record hash on blockchain
+        result = await blockchain.notarize_hash(
+            file_hash=doc.file_hash,
+            metadata={
+                "file_name": doc.file_name,
+                "timestamp": doc.created_at.isoformat()
+            }
+        )
+        tx_hash = result.transaction_hash
+        print(f"✓ Hash recorded on blockchain: {tx_hash}")
+
+        # Step 3: Monitor transaction (simulated)
+        print("✓ Transaction confirmed")
+
+        # Step 4: Generate certificates (simulated)
+        json_path = f"/certs/{doc.id}.json"
+        pdf_path = f"/certs/{doc.id}.pdf"
+        print(f"✓ Certificates generated: {json_path}, {pdf_path}")
+
+        # Step 5: Mark as on-chain
+        final_doc = await repo.update(
+            doc.id,
+            status=DocStatus.ON_CHAIN,
+            transaction_hash=tx_hash,
+            signed_json_path=json_path,
+            signed_pdf_path=pdf_path
+        )
+
+        print(f"✓ Final status: {final_doc.status.value}")
+        print(f"✓ Transaction hash: {final_doc.transaction_hash}")
+        print(f"✓ JSON certificate: {final_doc.signed_json_path}")
+        print(f"✓ PDF certificate: {final_doc.signed_pdf_path}")
+
+        logger.info("Hash notarization completed successfully", extra={"doc_id": doc.id})
+
+    except Exception as e:
+        print(f"✗ Error during notarization: {e}")
+        logger.error("Notarization failed", extra={"doc_id": doc.id, "error": str(e)})
+
+
 async def session_context_example():
     """
     Demonstrate database session usage
@@ -163,6 +242,7 @@ async def main():
 
     await basic_document_operations()
     await mock_blockchain_operations()
+    await hash_notarization_workflow()
     await error_handling_example()
     await session_context_example()
 
