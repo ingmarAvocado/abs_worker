@@ -3,7 +3,7 @@ Configuration settings for abs_worker using Pydantic Settings
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 
 class WorkerSettings(BaseSettings):
@@ -67,10 +67,11 @@ class WorkerSettings(BaseSettings):
         description="Enable structured JSON logging via abs_utils"
     )
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
 
 
 # Global settings instance

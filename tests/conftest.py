@@ -147,6 +147,11 @@ def populated_document_repository():
 def reset_settings():
     """Reset settings between tests"""
     from abs_worker.config import _settings
-    # Reset global settings
+    # Store original settings
+    original_settings = _settings
+    # Reset global settings to None
+    import abs_worker.config
+    abs_worker.config._settings = None
     yield
-    # Cleanup after test
+    # Restore original settings after test
+    abs_worker.config._settings = original_settings

@@ -7,7 +7,7 @@ in tests and examples without requiring a real database.
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import AsyncContextManager, Dict, Optional
 from unittest.mock import AsyncMock
@@ -46,7 +46,7 @@ class MockDocument:
 
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.utcnow()
+            self.created_at = datetime.now(UTC)
 
 
 class MockDocumentRepository:
