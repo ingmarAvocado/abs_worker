@@ -357,134 +357,64 @@ def reset_settings():
 
 
 # ============================================================================
-# Real data fixtures using abs_orm factories
+# Real data fixtures using factories
 # ============================================================================
 
+from tests.factories import UserFactory, DocumentFactory, ApiKeyFactory
+
+
 @pytest_asyncio.fixture
-async def test_user(db_context, request):
+async def test_user(db_context):
     """Create a real test user in the database."""
-    from abs_orm.models import User, UserRole
-    import bcrypt
-
-    # Use test function name to make email unique
-    test_name = request.node.name
-    email = f"test_{test_name}@example.com"
-
-    hashed_password = bcrypt.hashpw(b"testpass", bcrypt.gensalt()).decode()
-
-    user = await db_context.users.create(
-        email=email,
-        hashed_password=hashed_password,
-        role=UserRole.USER
-    )
+    user = await UserFactory.create(db_context.session)
     await db_context.commit()
     return user
 
 
 @pytest_asyncio.fixture
-async def test_admin(db_context, request):
+async def test_admin(db_context):
     """Create a real admin user in the database."""
-    from abs_orm.models import User, UserRole
-    import bcrypt
-
-    # Use test function name to make email unique
-    test_name = request.node.name
-    email = f"admin_{test_name}@example.com"
-
-    hashed_password = bcrypt.hashpw(b"adminpass", bcrypt.gensalt()).decode()
-
-    admin = await db_context.users.create(
-        email=email,
-        hashed_password=hashed_password,
-        role=UserRole.ADMIN
-    )
+    admin = await UserFactory.create_admin(db_context.session)
     await db_context.commit()
     return admin
 
 
 @pytest_asyncio.fixture
-async def test_document(db_context, test_user, request):
+async def test_document(db_context, test_user):
     """Create a real pending document in the database."""
-    from abs_orm.models import DocStatus, DocType
-
-    # Use test function name to make file_hash unique
-    test_name = request.node.name
-    unique_hash = f"0xabc123def456_{hash(test_name) % 10000:04x}"
-
-    doc = await db_context.documents.create(
-        owner_id=test_user.id,
-        file_name="test.pdf",
-        file_hash=unique_hash,
-        file_path="/tmp/test.pdf",
-        status=DocStatus.PENDING,
-        type=DocType.HASH
-    )
+    doc = await DocumentFactory.create_pending(db_context.session, owner=test_user)
     await db_context.commit()
     return doc
 
 
 @pytest_asyncio.fixture
-async def test_nft_document(db_context, test_user, request):
+async def test_nft_document(db_context, test_user):
     """Create a real pending NFT document in the database."""
-    from abs_orm.models import DocStatus, DocType
-
-    # Use test function name to make file_hash unique
-    test_name = request.node.name
-    unique_hash = f"0xdef456abc789_{hash(test_name) % 10000:04x}"
-
-    doc = await db_context.documents.create(
-        owner_id=test_user.id,
-        file_name="nft.png",
-        file_hash=unique_hash,
-        file_path="/tmp/nft.png",
-        status=DocStatus.PENDING,
-        type=DocType.NFT
-    )
+    doc = await DocumentFactory.create_nft_pending(db_context.session, owner=test_user)
     await db_context.commit()
     return doc
 
 
 @pytest_asyncio.fixture
-async def test_processing_document(db_context, test_user, request):
+async def test_processing_document(db_context, test_user):
     """Create a real processing document in the database."""
-    from abs_orm.models import DocStatus, DocType
-
-    # Use test function name to make file_hash unique
-    test_name = request.node.name
-    unique_hash = f"0x789def456abc_{hash(test_name) % 10000:04x}"
-
-    doc = await db_context.documents.create(
-        owner_id=test_user.id,
-        file_name="processing.pdf",
-        file_hash=unique_hash,
-        file_path="/tmp/processing.pdf",
-        status=DocStatus.PROCESSING,
-        type=DocType.HASH
-    )
+    doc = await DocumentFactory.create_processing(db_context.session, owner=test_user)
     await db_context.commit()
     return doc
 
 
 @pytest_asyncio.fixture
-async def test_on_chain_document(db_context, test_user, request):
+async def test_on_chain_document(db_context, test_user):
     """Create a real on-chain document in the database."""
-    from abs_orm.models import DocStatus, DocType
+    doc = await DocumentFactory.create_on_chain(db_context.session, owner=test_user)
+    await db_context.commit()
+    return doc
 
-    # Use test function name to make file_hash unique
-    test_name = request.node.name
-    unique_hash = f"0x101112abc789_{hash(test_name) % 10000:04x}"
 
-    doc = await db_context.documents.create(
-        owner_id=test_user.id,
-        file_name="completed.pdf",
-        file_hash=unique_hash,
-        file_path="/tmp/completed.pdf",
-        status=DocStatus.ON_CHAIN,
-        type=DocType.HASH,
-        transaction_hash="0xtxhash123",
-        signed_json_path="/certs/1.json",
-        signed_pdf_path="/certs/1.pdf"
-    )
+@pytest_asyncio.fixture
+async def test_error_document(db_context, test_user):
+    """Create a real error document in the database."""
+    doc = await DocumentFactory.create_error(db_context.session, owner=test_user)
     await db_context.commit()
     return doc
 
@@ -492,18 +422,17 @@ async def test_on_chain_document(db_context, test_user, request):
 @pytest_asyncio.fixture
 async def test_api_key(db_context, test_user):
     """Create a real API key in the database."""
-    import bcrypt
-
-    key_hash = bcrypt.hashpw(b"test_key_secret", bcrypt.gensalt()).decode()
-
-    api_key = await db_context.api_keys.create(
-        owner_id=test_user.id,
-        key_hash=key_hash,
-        prefix="sk_test_",
-        description="Test API Key"
-    )
+    api_key = await ApiKeyFactory.create(db_context.session, owner=test_user)
     await db_context.commit()
     return api_key
+
+
+@pytest_asyncio.fixture
+async def test_workflow_documents(db_context):
+    """Create a complete set of documents representing a workflow."""
+    workflow = await DocumentFactory.create_workflow_batch(db_context.session)
+    await db_context.commit()
+    return workflow
 
 
 # ============================================================================
@@ -531,32 +460,50 @@ def mock_transaction_receipt():
 
 
 # ============================================================================
-# Mock fixtures for unit tests
+# Backward compatibility aliases (deprecated - use test_* fixtures instead)
+# ============================================================================
+
+@pytest_asyncio.fixture
+async def mock_document(test_document):
+    """Backward compatibility - use test_document instead."""
+    return test_document
+
+
+@pytest_asyncio.fixture
+async def mock_nft_document(test_nft_document):
+    """Backward compatibility - use test_nft_document instead."""
+    return test_nft_document
+
+
+@pytest_asyncio.fixture
+async def mock_processing_document(test_processing_document):
+    """Backward compatibility - use test_processing_document instead."""
+    return test_processing_document
+
+
+@pytest_asyncio.fixture
+async def mock_completed_document(test_on_chain_document):
+    """Backward compatibility - use test_on_chain_document instead."""
+    return test_on_chain_document
+
+
+# ============================================================================
+# Factory class fixtures for direct use in tests
 # ============================================================================
 
 @pytest.fixture
-def mock_document():
-    """Provide a mock document for unit tests"""
-    from tests.mocks.factories import create_hash_document
-    return create_hash_document()
+def user_factory():
+    """Provide UserFactory class for creating users in tests."""
+    return UserFactory
 
 
 @pytest.fixture
-def mock_nft_document():
-    """Provide a mock NFT document for unit tests"""
-    from tests.mocks.factories import create_nft_document
-    return create_nft_document()
+def document_factory():
+    """Provide DocumentFactory class for creating documents in tests."""
+    return DocumentFactory
 
 
 @pytest.fixture
-def mock_processing_document():
-    """Provide a mock processing document for unit tests"""
-    from tests.mocks.factories import create_processing_document
-    return create_processing_document()
-
-
-@pytest.fixture
-def mock_completed_document():
-    """Provide a mock completed document for unit tests"""
-    from tests.mocks.factories import create_completed_document
-    return create_completed_document()
+def api_key_factory():
+    """Provide ApiKeyFactory class for creating API keys in tests."""
+    return ApiKeyFactory
