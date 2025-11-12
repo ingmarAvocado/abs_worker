@@ -1,162 +1,125 @@
 """
-Example 3: Transaction status monitoring
+Example 3: Transaction status monitoring with mocks
 
 This example demonstrates:
-- Monitoring blockchain transactions
+- Monitoring blockchain transactions using mocks
 - Checking transaction confirmations
 - Frontend polling patterns
 """
 
 import asyncio
-from abs_worker import monitor_transaction, check_transaction_status
+from tests.mocks.mock_blockchain import MockBlockchain
+from tests.mocks.mock_utils import get_logger
 
 
 async def monitor_transaction_example():
     """
-    Example of monitoring a transaction until confirmed
+    Example of monitoring a transaction until confirmed using mocks
 
-    This is what abs_worker does internally during notarization,
-    but can also be used standalone for:
-    - Admin tools
-    - Transaction debugging
-    - Manual verification
+    This demonstrates the monitoring pattern used internally during notarization.
     """
     print("=== Transaction Monitoring Example ===\n")
 
-    doc_id = 789
-    tx_hash = "0xabc123def456..."
+    logger = get_logger("monitor_example")
+    blockchain = MockBlockchain()
 
+    # Simulate a transaction that was just submitted
+    tx_hash = "0x0000000000000000000000000000000000000000000000000000000000001000"
     print(f"Monitoring transaction {tx_hash}")
     print("Waiting for confirmations...\n")
 
-    try:
-        receipt = await monitor_transaction(doc_id, tx_hash)
-        print(f"✓ Transaction confirmed!")
-        print(f"  Block Number: {receipt['blockNumber']}")
-        print(f"  Status: {'Success' if receipt['status'] == 1 else 'Reverted'}")
+    # Check initial status
+    receipt = await blockchain.get_transaction_receipt(tx_hash)
+    print(f"Initial status: {receipt['status']}")
+    print(f"Initial confirmations: {receipt['confirmations']}\n")
 
-    except TimeoutError as e:
-        print(f"✗ Transaction timeout: {e}")
+    # Wait for confirmations
+    required_confirmations = 3
+    max_attempts = 10
+    poll_interval = 1  # seconds
 
-    except ValueError as e:
-        print(f"✗ Transaction reverted: {e}")
+    for attempt in range(max_attempts):
+        receipt = await blockchain.get_transaction_receipt(tx_hash)
+        confirmations = receipt['confirmations']
+
+        print(f"Attempt {attempt + 1}: {confirmations} confirmations")
+
+        if confirmations >= required_confirmations:
+            print(f"✓ Transaction confirmed with {confirmations} blocks!")
+            logger.info("Transaction confirmed", extra={
+                "tx_hash": tx_hash,
+                "confirmations": confirmations,
+                "block_number": receipt['blockNumber']
+            })
+            break
+
+        # Simulate time passing by advancing block number
+        blockchain.current_block += 1
+        await asyncio.sleep(poll_interval)
+
+    else:
+        print("✗ Transaction monitoring timed out")
+        logger.warning("Transaction monitoring timed out", extra={"tx_hash": tx_hash})
 
 
-async def check_status_example():
+async def polling_pattern_example():
     """
-    Example of checking transaction status without waiting
-
-    Useful for:
-    - Quick status checks
-    - Frontend status indicators
-    - Debugging
-    """
-    print("\n=== Transaction Status Check Example ===\n")
-
-    tx_hash = "0xdef456abc789..."
-
-    status = await check_transaction_status(tx_hash)
-
-    print(f"Transaction: {tx_hash}")
-    print(f"Status: {status['status']}")
-    print(f"Confirmations: {status['confirmations']}")
-
-    if status['status'] == 'pending':
-        print("⏳ Transaction still pending...")
-    elif status['status'] == 'confirmed':
-        print("✓ Transaction confirmed")
-    elif status['status'] == 'reverted':
-        print("✗ Transaction reverted")
-
-
-async def frontend_polling_pattern():
-    """
-    Example of how frontend should poll for document status
-
-    Frontend Pattern:
-        1. User triggers action (sign document)
-        2. API returns {"status": "processing"}
-        3. Frontend starts polling every 2-3 seconds
-        4. Poll /documents/{doc_id} endpoint
-        5. When status changes to "on_chain", stop polling
-        6. Show success message with certificate download links
+    Demonstrate frontend polling pattern for status updates
     """
     print("\n=== Frontend Polling Pattern Example ===\n")
 
-    doc_id = 123
-    poll_interval = 2  # seconds
-    max_polls = 30  # max 1 minute
+    from tests.mocks.mock_orm import MockDocumentRepository, create_mock_document as create_document, DocStatus
 
-    print(f"Simulating frontend polling for document {doc_id}...")
-    print(f"Poll interval: {poll_interval}s\n")
+    logger = get_logger("polling_example")
+    repo = MockDocumentRepository()
 
-    for attempt in range(max_polls):
-        # In real implementation, this would call API endpoint
-        # response = await http_client.get(f"/api/v1/documents/{doc_id}")
-        # status = response.json()["status"]
+    # Create a document in processing state
+    doc = create_document(id=123, status=DocStatus.PROCESSING)
+    repo.documents[123] = doc
 
-        # Simulated status progression
-        if attempt < 5:
-            status = "processing"
-        elif attempt < 10:
-            status = "on_chain"
-        else:
-            status = "on_chain"
+    print("Simulating frontend polling for document status...")
+    print("(In real app, this would be HTTP requests every 2-3 seconds)\n")
 
-        print(f"Poll #{attempt + 1}: status = {status}")
+    # Simulate polling loop
+    max_polls = 5
+    for poll_count in range(max_polls):
+        retrieved = await repo.get(123)
+        status = retrieved.status.value
+
+        print(f"Poll {poll_count + 1}: Status = {status}")
 
         if status == "on_chain":
-            print("\n✓ Document notarized successfully!")
-            print("Certificates available for download")
+            print("✓ Document processing complete!")
+            logger.info("Document processing complete", extra={"doc_id": 123})
             break
-
         elif status == "error":
-            print("\n✗ Notarization failed")
+            print("✗ Document processing failed!")
+            logger.error("Document processing failed", extra={"doc_id": 123})
             break
 
-        await asyncio.sleep(poll_interval)
+        # Simulate processing time
+        await asyncio.sleep(1)
+
+        # Update status to simulate completion
+        if poll_count == 2:  # Complete on 3rd poll
+            await repo.update(123, status=DocStatus.ON_CHAIN, transaction_hash="0xabc123")
+
     else:
-        print("\n⚠ Polling timeout - status still processing")
+        print("Still processing... (would continue polling in real app)")
 
 
-async def multiple_transaction_monitoring():
+async def main():
     """
-    Example of monitoring multiple transactions simultaneously
-
-    Useful for:
-    - Batch operations
-    - Admin dashboards
-    - System monitoring
+    Run monitoring examples
     """
-    print("\n=== Multiple Transaction Monitoring Example ===\n")
+    print("Transaction Status Monitoring Examples")
+    print("=" * 50)
 
-    transactions = [
-        (1, "0xaaa111..."),
-        (2, "0xbbb222..."),
-        (3, "0xccc333..."),
-    ]
+    await monitor_transaction_example()
+    await polling_pattern_example()
 
-    print(f"Monitoring {len(transactions)} transactions in parallel...\n")
-
-    # Monitor all transactions concurrently
-    tasks = [
-        monitor_transaction(doc_id, tx_hash)
-        for doc_id, tx_hash in transactions
-    ]
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Report results
-    for (doc_id, tx_hash), result in zip(transactions, results):
-        if isinstance(result, Exception):
-            print(f"✗ Document {doc_id}: Failed - {result}")
-        else:
-            print(f"✓ Document {doc_id}: Confirmed at block {result['blockNumber']}")
+    print("\n✓ Monitoring examples completed!")
 
 
 if __name__ == "__main__":
-    # Run examples
-    asyncio.run(monitor_transaction_example())
-    asyncio.run(check_status_example())
-    asyncio.run(frontend_polling_pattern())
-    # asyncio.run(multiple_transaction_monitoring())
+    asyncio.run(main())

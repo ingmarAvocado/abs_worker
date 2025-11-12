@@ -6,6 +6,25 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from abs_worker.config import WorkerSettings
 
+# Import mock implementations
+from tests.mocks import (
+    MockDocument,
+    MockDocumentRepository,
+    MockBlockchain,
+    DocStatus,
+    DocType,
+    get_session,
+    create_document,
+    create_hash_document,
+    create_nft_document,
+    create_processing_document,
+    create_completed_document,
+    create_failed_document,
+    create_document_repository,
+    create_populated_repository,
+    get_logger,
+)
+
 
 @pytest.fixture
 def worker_settings():
@@ -29,40 +48,27 @@ def worker_settings():
 @pytest.fixture
 def mock_document():
     """Provide a mock Document object"""
-    doc = MagicMock()
-    doc.id = 123
-    doc.file_name = "test.pdf"
-    doc.file_hash = "0xabc123def456"
-    doc.file_path = "/tmp/test.pdf"
-    doc.type = MagicMock(value="hash")
-    doc.status = MagicMock(value="pending")
-    doc.transaction_hash = None
-    doc.owner_id = 1
-    doc.created_at = MagicMock()
-    doc.created_at.isoformat = MagicMock(return_value="2024-01-01T00:00:00Z")
-    return doc
+    return create_hash_document(
+        id=123,
+        file_name="test.pdf",
+        file_hash="0xabc123def456",
+        file_path="/tmp/test.pdf",
+        status=DocStatus.PENDING,
+        type=DocType.HASH,
+    )
 
 
 @pytest.fixture
 def mock_nft_document():
     """Provide a mock NFT Document object"""
-    doc = MagicMock()
-    doc.id = 456
-    doc.file_name = "nft.png"
-    doc.file_hash = "0xdef456abc789"
-    doc.file_path = "/tmp/nft.png"
-    doc.type = MagicMock(value="nft")
-    doc.status = MagicMock(value="pending")
-    doc.transaction_hash = None
-    doc.arweave_file_url = None
-    doc.arweave_metadata_url = None
-    doc.nft_token_id = None
-    doc.owner_id = 1
-    doc.owner = MagicMock()
-    doc.owner.eth_address = "0x1234567890abcdef"
-    doc.created_at = MagicMock()
-    doc.created_at.isoformat = MagicMock(return_value="2024-01-01T00:00:00Z")
-    return doc
+    return create_nft_document(
+        id=456,
+        file_name="nft.png",
+        file_hash="0xdef456abc789",
+        file_path="/tmp/nft.png",
+        status=DocStatus.PENDING,
+        type=DocType.NFT,
+    )
 
 
 @pytest.fixture
@@ -92,38 +98,49 @@ def mock_db_session():
 @pytest.fixture
 def mock_document_repository():
     """Provide a mock DocumentRepository"""
-    repo = AsyncMock()
-    repo.get = AsyncMock()
-    repo.update_status = AsyncMock()
-    repo.mark_as_on_chain = AsyncMock()
-    repo.update = AsyncMock()
-    return repo
+    return create_document_repository()
 
 
 @pytest.fixture
 async def mock_blockchain():
-    """Provide mock blockchain functions"""
-    class MockBlockchain:
-        async def record_hash(self, file_hash, metadata):
-            return "0xabc123"
-
-        async def mint_nft(self, to_address, token_id, metadata_uri):
-            return "0xdef456"
-
-        async def upload_to_arweave(self, data, content_type):
-            return "https://arweave.net/mock123"
-
-        async def get_transaction_receipt(self, tx_hash):
-            return {
-                "transactionHash": tx_hash,
-                "blockNumber": 12345,
-                "status": 1,
-            }
-
-        async def get_latest_block_number(self):
-            return 12350
-
+    """Provide mock blockchain interface"""
     return MockBlockchain()
+
+
+@pytest.fixture
+def mock_logger():
+    """Provide a mock logger for testing"""
+    return get_logger("test")
+
+
+@pytest.fixture
+def mock_session():
+    """Provide a mock database session context manager"""
+    return get_session()
+
+
+@pytest.fixture
+def mock_processing_document():
+    """Provide a document in processing status"""
+    return create_processing_document(id=789)
+
+
+@pytest.fixture
+def mock_completed_document():
+    """Provide a document in completed status"""
+    return create_completed_document(id=101)
+
+
+@pytest.fixture
+def mock_failed_document():
+    """Provide a document in error status"""
+    return create_failed_document(id=202)
+
+
+@pytest.fixture
+def populated_document_repository():
+    """Provide a repository with some test documents"""
+    return create_populated_repository(count=3)
 
 
 @pytest.fixture(autouse=True)

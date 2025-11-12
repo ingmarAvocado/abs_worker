@@ -1,158 +1,146 @@
 """
-Example 2: NFT minting with Arweave storage
+Example 2: NFT minting with mock blockchain and Arweave
 
 This example demonstrates:
-- NFT minting workflow
-- Arweave file upload
-- Complete NFT metadata generation
+- NFT minting workflow using mocks
+- Mock Arweave file upload
+- Mock NFT metadata generation
+- Complete NFT creation flow
 """
 
 import asyncio
-from fastapi import FastAPI, BackgroundTasks
-from abs_worker import process_nft_notarization
+import json
+from tests.mocks.mock_orm import create_mock_nft_document as create_nft_document, DocStatus
+from tests.mocks.mock_blockchain import MockBlockchain
+from tests.mocks.mock_utils import get_logger
 
-app = FastAPI()
 
-
-@app.post("/documents/{doc_id}/mint-nft")
-async def mint_document_nft(doc_id: int, background_tasks: BackgroundTasks):
+async def nft_minting_workflow():
     """
-    Endpoint to trigger NFT minting for a document
-
-    Flow:
-        1. User uploads file with type="nft"
-        2. User calls this endpoint to mint NFT
-        3. Background task:
-           - Uploads file to Arweave
-           - Uploads metadata to Arweave
-           - Mints NFT with metadata URI
-        4. User polls /documents/{doc_id} to check status
+    Demonstrate complete NFT minting workflow using mocks
     """
-    # Validate document exists, is type NFT, and user owns it
-    # (validation code omitted for brevity)
+    print("=== NFT Minting Workflow Example ===\n")
 
-    # Enqueue NFT minting background task
-    background_tasks.add_task(process_nft_notarization, doc_id)
+    logger = get_logger("nft_example")
 
-    return {
-        "message": "NFT minting started",
-        "doc_id": doc_id,
-        "status": "processing"
+    # Create an NFT document
+    nft_doc = create_nft_document(
+        id=100,
+        file_name="artwork.png",
+        file_hash="0xnft987654321fedcba",
+        file_path="/tmp/artwork.png"
+    )
+
+    print(f"Created NFT document: {nft_doc.file_name}")
+    print(f"Document type: {nft_doc.type.value}")
+    print(f"Initial status: {nft_doc.status.value}\n")
+
+    # Initialize mock blockchain
+    blockchain = MockBlockchain()
+
+    # Step 1: Upload file to Arweave
+    print("Step 1: Uploading file to Arweave...")
+    # Use mock file data instead of reading from disk
+    file_data = b"Mock PNG file content for NFT artwork"
+
+    file_url = await blockchain.upload_to_arweave(file_data, "image/png")
+    print(f"✓ File uploaded to: {file_url}")
+    logger.info("File uploaded to Arweave", extra={"file_url": file_url})
+
+    # Step 2: Create and upload metadata
+    print("\nStep 2: Creating NFT metadata...")
+    metadata = {
+        "name": f"Notarized Document: {nft_doc.file_name}",
+        "description": "A legally notarized document stored on blockchain",
+        "image": file_url,
+        "attributes": [
+            {"trait_type": "Document Type", "value": "NFT"},
+            {"trait_type": "File Hash", "value": nft_doc.file_hash},
+            {"trait_type": "Notarization Date", "value": "2024-01-01"}
+        ]
     }
 
+    metadata_json = json.dumps(metadata, indent=2)
+    metadata_url = await blockchain.upload_to_arweave(
+        metadata_json.encode('utf-8'),
+        "application/json"
+    )
+    print(f"✓ Metadata uploaded to: {metadata_url}")
+    logger.info("Metadata uploaded to Arweave", extra={"metadata_url": metadata_url})
 
-@app.get("/documents/{doc_id}/nft-details")
-async def get_nft_details(doc_id: int):
+    # Step 3: Mint NFT
+    print("\nStep 3: Minting NFT...")
+    owner_address = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+    token_id = 1
+
+    mint_tx = await blockchain.mint_nft(owner_address, token_id, metadata_url)
+    print(f"✓ NFT minted! Transaction: {mint_tx}")
+    logger.info("NFT minted successfully", extra={
+        "tx_hash": mint_tx,
+        "token_id": token_id,
+        "owner": owner_address
+    })
+
+    # Step 4: Wait for confirmations
+    print("\nStep 4: Waiting for transaction confirmations...")
+    receipt = await blockchain.wait_for_confirmations(mint_tx, required_confirmations=3)
+    print(f"✓ Transaction confirmed in block {receipt['blockNumber']}")
+    print(f"Confirmations: {receipt['confirmations']}")
+
+    # Step 5: Update document with results
+    print("\nStep 5: Updating document record...")
+    nft_doc.status = DocStatus.ON_CHAIN
+    nft_doc.transaction_hash = mint_tx
+    nft_doc.arweave_file_url = file_url
+    nft_doc.arweave_metadata_url = metadata_url
+    nft_doc.nft_token_id = token_id
+
+    print("✓ Document updated with notarization details")
+    print(f"Final status: {nft_doc.status.value}")
+    print(f"NFT Token ID: {nft_doc.nft_token_id}")
+    print(f"Transaction: {nft_doc.transaction_hash}")
+    print(f"Arweave file: {nft_doc.arweave_file_url}")
+    print(f"Arweave metadata: {nft_doc.arweave_metadata_url}")
+
+    return nft_doc
+
+
+async def error_scenarios():
     """
-    Get NFT-specific details for a minted document
-
-    Returns:
-        - Token ID
-        - Arweave file URL
-        - Arweave metadata URL
-        - Transaction hash
-        - OpenSea link (if on supported chain)
+    Demonstrate error handling in NFT minting
     """
-    # TODO: Implement when abs_orm is available
-    # async with get_session() as session:
-    #     doc_repo = DocumentRepository(session)
-    #     doc = await doc_repo.get(doc_id)
-    #
-    #     if doc.type != DocType.NFT:
-    #         raise HTTPException(400, "Document is not an NFT")
-    #
-    #     return {
-    #         "token_id": doc.nft_token_id,
-    #         "arweave_file_url": doc.arweave_file_url,
-    #         "arweave_metadata_url": doc.arweave_metadata_url,
-    #         "transaction_hash": doc.transaction_hash,
-    #         "opensea_url": f"https://opensea.io/assets/polygon/{contract_address}/{doc.nft_token_id}"
-    #     }
+    print("\n=== Error Handling Scenarios ===\n")
 
-    # Stub response
-    return {
-        "token_id": 123,
-        "arweave_file_url": "https://arweave.net/file123",
-        "arweave_metadata_url": "https://arweave.net/metadata123",
-        "transaction_hash": "0xdef456...",
-        "opensea_url": "https://opensea.io/assets/polygon/0x.../123"
-    }
+    from tests.mocks.mock_blockchain import ContractRevertedException
 
+    blockchain = MockBlockchain()
+    logger = get_logger("nft_errors")
 
-# Standalone usage example
-async def standalone_example():
-    """
-    Example of NFT minting directly without FastAPI
-
-    NFT Minting Flow:
-        1. Document record exists in database
-        2. File is stored locally at doc.file_path
-        3. process_nft_notarization:
-           - Reads file from disk
-           - Uploads to Arweave → file_url
-           - Creates metadata JSON
-           - Uploads metadata to Arweave → metadata_url
-           - Calls blockchain mint_nft(owner, token_id, metadata_url)
-           - Monitors transaction
-           - Updates document with all URLs and token_id
-    """
-    print("=== Standalone NFT Minting Example ===\n")
-
-    # Simulate processing an NFT document
-    doc_id = 456
-    print(f"Minting NFT for document {doc_id}...")
-    print("Steps:")
-    print("  1. Upload file to Arweave")
-    print("  2. Upload metadata to Arweave")
-    print("  3. Mint NFT on blockchain")
-    print("  4. Monitor transaction")
-    print("  5. Generate certificates")
-    print("  6. Update document\n")
+    # Simulate contract revert
+    blockchain.set_next_transaction_failure(
+        ContractRevertedException("Insufficient funds for NFT minting")
+    )
 
     try:
-        await process_nft_notarization(doc_id)
-        print(f"✓ NFT minted successfully for document {doc_id}!")
+        await blockchain.mint_nft("0x123", 1, "https://arweave.net/abc")
+    except ContractRevertedException as e:
+        print(f"✗ NFT minting failed: {e}")
+        logger.error("NFT minting failed", extra={"error": str(e)})
 
-    except Exception as e:
-        print(f"✗ Error minting NFT for document {doc_id}: {e}")
 
-
-async def batch_nft_minting_example():
+async def main():
     """
-    Example of minting multiple NFTs in batch
-
-    Useful for:
-    - Admin tools
-    - Migration scripts
-    - Bulk operations
+    Run NFT minting examples
     """
-    print("\n=== Batch NFT Minting Example ===\n")
+    print("NFT Minting Examples with Mock Dependencies")
+    print("=" * 50)
 
-    doc_ids = [1, 2, 3, 4, 5]
-    print(f"Minting {len(doc_ids)} NFTs in parallel...")
+    await nft_minting_workflow()
+    await error_scenarios()
 
-    # Process all in parallel
-    tasks = [process_nft_notarization(doc_id) for doc_id in doc_ids]
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Report results
-    successful = sum(1 for r in results if not isinstance(r, Exception))
-    failed = len(results) - successful
-
-    print(f"\n✓ Successfully minted: {successful}")
-    print(f"✗ Failed: {failed}")
-
-    # Show errors
-    for doc_id, result in zip(doc_ids, results):
-        if isinstance(result, Exception):
-            print(f"  Document {doc_id}: {result}")
+    print("\n✓ NFT examples completed!")
+    print("\nNote: In production, replace mock imports with real blockchain/Arweave clients")
 
 
 if __name__ == "__main__":
-    # Run standalone examples
-    asyncio.run(standalone_example())
-    # asyncio.run(batch_nft_minting_example())
-
-    # To run FastAPI server:
-    # uvicorn examples.02_nft_minting:app --reload
+    asyncio.run(main())

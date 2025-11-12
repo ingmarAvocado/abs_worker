@@ -18,21 +18,27 @@ Comprehensive examples showing how to use `abs_worker` for background processing
 
 ## 🚀 Running Examples
 
-All examples are **standalone** and will run even though abs_orm and abs_blockchain aren't implemented yet. They show the expected API usage patterns.
+All examples are **standalone** and use **mock dependencies** from `tests/mocks/` to demonstrate interface contracts. They show the expected API usage patterns without requiring real blockchain or database connections.
 
 ```bash
 # Install dependencies
 cd abs_worker
 poetry install
 
-# Run basic example
+# Run basic example (uses mocks)
 poetry run python examples/01_basic_usage.py
 
-# Run FastAPI server example
-poetry run uvicorn examples.04_complete_api_integration:app --reload
+# Run NFT minting example (uses mocks)
+poetry run python examples/02_nft_minting.py
 
-# Run admin CLI
-poetry run python examples/06_admin_cli.py --help
+# Run status monitoring example (uses mocks)
+poetry run python examples/03_status_monitoring.py
+
+# Run API integration example (uses mocks)
+poetry run python examples/04_complete_api_integration.py
+
+# Run batch operations example (uses mocks)
+poetry run python examples/05_batch_operations.py
 ```
 
 ## 📖 What Each Example Shows
@@ -290,16 +296,40 @@ await process_hash_notarization(doc_id)
 
 | Example | Status | Notes |
 |---------|--------|-------|
-| 01_basic_usage.py | ✅ Working | Stub implementation |
-| 02_nft_minting.py | ✅ Working | Stub implementation |
-| 03_status_monitoring.py | ✅ Working | Stub implementation |
-| 04_complete_api_integration.py | ✅ Working | Production-ready structure |
-| 05_batch_operations.py | ✅ Working | Shows patterns |
-| 06_admin_cli.py | ✅ Working | CLI framework |
-| 07_webhook_handler.py | ✅ Working | Webhook patterns |
-| 08_error_recovery.py | ✅ Working | Error strategies |
+| 01_basic_usage.py | ✅ Working | Uses mock dependencies |
+| 02_nft_minting.py | ✅ Working | Uses mock dependencies |
+| 03_status_monitoring.py | ✅ Working | Uses mock dependencies |
+| 04_complete_api_integration.py | ✅ Working | Mock API patterns |
+| 05_batch_operations.py | ✅ Working | Mock batch processing |
+| 06_admin_cli.py | ❌ Not updated | Still uses real imports |
+| 07_webhook_handler.py | ❌ Not updated | Still uses real imports |
+| 08_error_recovery.py | ❌ Not updated | Still uses real imports |
 
-**Note:** All examples run successfully but use stub implementations. Real blockchain operations require abs_orm and abs_blockchain integration.
+**Note:** Examples 01-05 now use mock implementations from `tests/mocks/` to demonstrate interface contracts. Examples 06-08 still need to be updated to use mocks.
+
+## 🎭 Mock Dependencies
+
+Examples 01-05 use mock implementations from `tests/mocks/` to demonstrate interface contracts:
+
+### Mock Components
+- **MockDocumentRepository** - Simulates database operations
+- **MockBlockchain** - Simulates blockchain and Arweave operations
+- **MockLogger** - Provides console logging instead of structured JSON logs
+- **Mock Exceptions** - Simulate various error conditions
+
+### Switching to Real Dependencies
+
+When real libraries are available, replace mock imports:
+
+```python
+# Instead of:
+from tests.mocks.mock_orm import MockDocumentRepository, DocStatus
+from tests.mocks.mock_blockchain import MockBlockchain
+
+# Use:
+from abs_orm import DocumentRepository, DocStatus
+from abs_blockchain import BlockchainClient
+```
 
 ## 🔗 Integration with Other Libraries
 
@@ -308,7 +338,7 @@ These examples assume:
 - **abs_blockchain** - Blockchain operations (record_hash, mint_nft, Arweave)
 - **abs_utils** - Structured logging and utilities
 
-See the commented-out imports in each example for integration points.
+See the mock implementations in `tests/mocks/` for expected interface contracts.
 
 ## 💡 Best Practices Shown
 
