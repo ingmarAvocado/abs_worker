@@ -22,9 +22,9 @@ python-dotenv = "^1.0.0"
 
 # abs_notary dependencies (local development paths)
 # In production, these would be installed from GitHub or PyPI
-# abs-orm = {path = "../abs_orm", develop = true}
-# abs-blockchain = {path = "../abs_blockchain", develop = true}
-# abs-utils = {path = "../abs_utils", develop = true}
+abs-orm = {path = "../abs_orm", develop = true}
+abs-blockchain = {path = "../abs_blockchain", develop = true}
+abs-utils = {path = "../abs_utils", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

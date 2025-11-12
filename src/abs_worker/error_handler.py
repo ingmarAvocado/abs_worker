@@ -10,28 +10,11 @@ This module handles:
 import asyncio
 from typing import Optional, Callable, Any
 
-# from abs_orm import get_session, DocumentRepository, DocStatus
-# from abs_utils.logger import get_logger
+from abs_orm import get_session, DocumentRepository, DocStatus
+from abs_utils.logger import get_logger
 from .config import get_settings
 
-# logger = get_logger(__name__)
-
-# Import mocks for testing - in production these would be real imports
-try:
-    from abs_orm import get_session, DocumentRepository, DocStatus
-    from abs_utils.logger import get_logger
-
-    logger = get_logger(__name__)
-except ImportError:
-    # Use mocks for testing/examples
-    from tests.mocks.mock_orm import (
-        get_session,
-        MockDocumentRepository as DocumentRepository,
-        DocStatus,
-    )
-    from tests.mocks.mock_utils import get_logger
-
-    logger = get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def is_retryable_error(error: Exception) -> bool:
@@ -108,13 +91,7 @@ async def handle_failed_transaction(doc_id: int, error: Exception) -> None:
     )
 
     async with get_session() as session:
-        # Handle both real and mock repositories
-        try:
-            doc_repo = DocumentRepository(session)
-        except TypeError:
-            # Mock repository doesn't take session parameter
-            doc_repo = DocumentRepository()
-
+        doc_repo = DocumentRepository(session)
         doc = await doc_repo.get(doc_id)
 
         if not doc:
@@ -140,13 +117,7 @@ async def handle_failed_transaction(doc_id: int, error: Exception) -> None:
             doc_id, status=DocStatus.ERROR, error_message=str(error)[:500]  # Truncate long errors
         )
 
-        # Handle both real and mock sessions
-        try:
-            await session.commit()
-        except AttributeError:
-            # Mock session doesn't have commit
-            pass
-
+        await session.commit()
         logger.info(f"Document {doc_id} marked as ERROR", extra={"doc_id": doc_id})
 
 

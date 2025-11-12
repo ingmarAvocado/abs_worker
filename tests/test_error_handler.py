@@ -75,9 +75,28 @@ class TestHandleFailedTransaction:
     """Tests for handle_failed_transaction function"""
 
     @pytest.mark.asyncio
-    async def test_handle_failed_transaction_stub(self):
-        """Test handle_failed_transaction stub implementation"""
-        # This is a stub test since we don't have abs_orm yet
+    async def test_handle_failed_transaction_stub(self, monkeypatch):
+        """Test handle_failed_transaction with mocked dependencies"""
+        from tests.mocks.mock_orm import MockDocumentRepository, MockAsyncSession
+        from tests.mocks.mock_utils import MockLogger
+
+        # Create mocks
+        repo = MockDocumentRepository()
+        session = MockAsyncSession()
+        logger = MockLogger("test")
+
+        # Mock the dependencies
+        @asynccontextmanager
+        async def mock_get_session():
+            try:
+                yield session
+            finally:
+                await session.close()
+
+        monkeypatch.setattr("abs_worker.error_handler.get_session", mock_get_session)
+        monkeypatch.setattr("abs_worker.error_handler.DocumentRepository", lambda s: repo)
+        monkeypatch.setattr("abs_worker.error_handler.logger", logger)
+
         doc_id = 123
         error = Exception("Test error")
 
@@ -85,22 +104,18 @@ class TestHandleFailedTransaction:
         await handle_failed_transaction(doc_id, error)
 
     @pytest.mark.asyncio
-    async def test_handle_retryable_error(self, mock_document):
+    async def test_handle_retryable_error(self, mock_document, monkeypatch):
         """Test handling of retryable errors"""
-        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+        from tests.mocks.mock_orm import MockDocumentRepository, MockAsyncSession
+        from tests.mocks.mock_utils import MockLogger
 
-        # Create a repository with the mock document
+        # Create mocks
         repo = MockDocumentRepository()
         repo.documents[mock_document.id] = mock_document
-
-        # Mock the session and repository
-        import abs_worker.error_handler as eh
-
-        original_get_session = eh.get_session
-        original_DocumentRepository = eh.DocumentRepository
-
         session = MockAsyncSession()
+        logger = MockLogger("test")
 
+        # Mock the dependencies
         @asynccontextmanager
         async def mock_get_session():
             try:
@@ -108,40 +123,32 @@ class TestHandleFailedTransaction:
             finally:
                 await session.close()
 
-        eh.get_session = mock_get_session
-        eh.DocumentRepository = lambda: repo
+        monkeypatch.setattr("abs_worker.error_handler.get_session", mock_get_session)
+        monkeypatch.setattr("abs_worker.error_handler.DocumentRepository", lambda s: repo)
+        monkeypatch.setattr("abs_worker.error_handler.logger", logger)
 
-        try:
-            error = Exception("Connection timeout")
-            await handle_failed_transaction(mock_document.id, error)
+        error = Exception("Connection timeout")
+        await handle_failed_transaction(mock_document.id, error)
 
-            # Check that document was updated
-            updated_doc = repo.documents[mock_document.id]
-            assert updated_doc.status == DocStatus.ERROR
-            assert updated_doc.error_message == str(error)
-            assert session.committed is True
-
-        finally:
-            eh.get_session = original_get_session
-            eh.DocumentRepository = original_DocumentRepository
+        # Check that document was updated
+        updated_doc = repo.documents[mock_document.id]
+        assert updated_doc.status.value == "error"  # Compare enum values, not classes
+        assert updated_doc.error_message == str(error)
+        assert session.committed is True
 
     @pytest.mark.asyncio
-    async def test_handle_non_retryable_error(self, mock_document):
+    async def test_handle_non_retryable_error(self, mock_document, monkeypatch):
         """Test handling of non-retryable errors"""
-        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+        from tests.mocks.mock_orm import MockDocumentRepository, MockAsyncSession
+        from tests.mocks.mock_utils import MockLogger
 
-        # Create a repository with the mock document
+        # Create mocks
         repo = MockDocumentRepository()
         repo.documents[mock_document.id] = mock_document
-
-        # Mock the session and repository
-        import abs_worker.error_handler as eh
-
-        original_get_session = eh.get_session
-        original_DocumentRepository = eh.DocumentRepository
-
         session = MockAsyncSession()
+        logger = MockLogger("test")
 
+        # Mock the dependencies
         @asynccontextmanager
         async def mock_get_session():
             try:
@@ -149,22 +156,18 @@ class TestHandleFailedTransaction:
             finally:
                 await session.close()
 
-        eh.get_session = mock_get_session
-        eh.DocumentRepository = lambda: repo
+        monkeypatch.setattr("abs_worker.error_handler.get_session", mock_get_session)
+        monkeypatch.setattr("abs_worker.error_handler.DocumentRepository", lambda s: repo)
+        monkeypatch.setattr("abs_worker.error_handler.logger", logger)
 
-        try:
-            error = Exception("Transaction reverted")
-            await handle_failed_transaction(mock_document.id, error)
+        error = Exception("Transaction reverted")
+        await handle_failed_transaction(mock_document.id, error)
 
-            # Check that document was updated
-            updated_doc = repo.documents[mock_document.id]
-            assert updated_doc.status == DocStatus.ERROR
-            assert updated_doc.error_message == str(error)
-            assert session.committed is True
-
-        finally:
-            eh.get_session = original_get_session
-            eh.DocumentRepository = original_DocumentRepository
+        # Check that document was updated
+        updated_doc = repo.documents[mock_document.id]
+        assert updated_doc.status.value == "error"  # Compare enum values, not classes
+        assert updated_doc.error_message == str(error)
+        assert session.committed is True
 
 
 class TestRetryWithBackoff:
