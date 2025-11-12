@@ -2,8 +2,14 @@
 Tests for error handler module
 """
 
+import asyncio
 import pytest
-from abs_worker.error_handler import is_retryable_error, handle_failed_transaction
+from contextlib import asynccontextmanager
+from abs_worker.error_handler import (
+    is_retryable_error,
+    handle_failed_transaction,
+    retry_with_backoff,
+)
 
 
 class TestIsRetryableError:
@@ -79,20 +85,86 @@ class TestHandleFailedTransaction:
         await handle_failed_transaction(doc_id, error)
 
     @pytest.mark.asyncio
-    async def test_handle_retryable_error(self, mock_document, mock_db_session):
+    async def test_handle_retryable_error(self, mock_document):
         """Test handling of retryable errors"""
-        # TODO: Implement when abs_orm is available
-        # This would test that retryable errors are logged differently
-        # and potentially trigger retry mechanism
-        pass
+        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+
+        # Create a repository with the mock document
+        repo = MockDocumentRepository()
+        repo.documents[mock_document.id] = mock_document
+
+        # Mock the session and repository
+        import abs_worker.error_handler as eh
+
+        original_get_session = eh.get_session
+        original_DocumentRepository = eh.DocumentRepository
+
+        session = MockAsyncSession()
+
+        @asynccontextmanager
+        async def mock_get_session():
+            try:
+                yield session
+            finally:
+                await session.close()
+
+        eh.get_session = mock_get_session
+        eh.DocumentRepository = lambda: repo
+
+        try:
+            error = Exception("Connection timeout")
+            await handle_failed_transaction(mock_document.id, error)
+
+            # Check that document was updated
+            updated_doc = repo.documents[mock_document.id]
+            assert updated_doc.status == DocStatus.ERROR
+            assert updated_doc.error_message == str(error)
+            assert session.committed is True
+
+        finally:
+            eh.get_session = original_get_session
+            eh.DocumentRepository = original_DocumentRepository
 
     @pytest.mark.asyncio
-    async def test_handle_non_retryable_error(self, mock_document, mock_db_session):
+    async def test_handle_non_retryable_error(self, mock_document):
         """Test handling of non-retryable errors"""
-        # TODO: Implement when abs_orm is available
-        # This would test that non-retryable errors immediately
-        # mark document as ERROR
-        pass
+        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+
+        # Create a repository with the mock document
+        repo = MockDocumentRepository()
+        repo.documents[mock_document.id] = mock_document
+
+        # Mock the session and repository
+        import abs_worker.error_handler as eh
+
+        original_get_session = eh.get_session
+        original_DocumentRepository = eh.DocumentRepository
+
+        session = MockAsyncSession()
+
+        @asynccontextmanager
+        async def mock_get_session():
+            try:
+                yield session
+            finally:
+                await session.close()
+
+        eh.get_session = mock_get_session
+        eh.DocumentRepository = lambda: repo
+
+        try:
+            error = Exception("Transaction reverted")
+            await handle_failed_transaction(mock_document.id, error)
+
+            # Check that document was updated
+            updated_doc = repo.documents[mock_document.id]
+            assert updated_doc.status == DocStatus.ERROR
+            assert updated_doc.error_message == str(error)
+            assert session.committed is True
+
+        finally:
+            eh.get_session = original_get_session
+            eh.DocumentRepository = original_DocumentRepository
 
 
 class TestRetryWithBackoff:
@@ -101,29 +173,89 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_successful_call_no_retry(self):
         """Test that successful calls don't retry"""
-        # TODO: Implement when retry_with_backoff has real implementation
-        pass
+        call_count = 0
+
+        async def successful_func():
+            nonlocal call_count
+            call_count += 1
+            return "success"
+
+        result = await retry_with_backoff(successful_func, max_retries=3)
+        assert result == "success"
+        assert call_count == 1
 
     @pytest.mark.asyncio
     async def test_retryable_error_retries(self):
         """Test that retryable errors trigger retries"""
-        # TODO: Implement with retry count verification
-        pass
+        call_count = 0
+
+        async def failing_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise Exception("Connection timeout")
+            return "success"
+
+        result = await retry_with_backoff(failing_func, max_retries=3)
+        assert result == "success"
+        assert call_count == 3
 
     @pytest.mark.asyncio
     async def test_non_retryable_error_no_retry(self):
         """Test that non-retryable errors don't retry"""
-        # TODO: Implement with retry count verification
-        pass
+        call_count = 0
+
+        async def failing_func():
+            nonlocal call_count
+            call_count += 1
+            raise Exception("Transaction reverted")
+
+        with pytest.raises(Exception, match="Transaction reverted"):
+            await retry_with_backoff(failing_func, max_retries=3)
+
+        assert call_count == 1
 
     @pytest.mark.asyncio
     async def test_exponential_backoff(self):
         """Test that backoff delays increase exponentially"""
-        # TODO: Implement with timing verification
-        pass
+        delays = []
+
+        async def failing_func():
+            raise Exception("Connection timeout")
+
+        # Mock asyncio.sleep to capture delays
+        original_sleep = asyncio.sleep
+
+        async def mock_sleep(delay):
+            delays.append(delay)
+            await original_sleep(0.001)  # Very short sleep for testing
+
+        asyncio.sleep = mock_sleep
+
+        try:
+            with pytest.raises(Exception):
+                await retry_with_backoff(
+                    failing_func, max_retries=2, initial_delay=1, backoff_multiplier=2
+                )
+        finally:
+            asyncio.sleep = original_sleep
+
+        # Should have delays: 1, 2 (1*2^1)
+        assert len(delays) == 2
+        assert delays[0] == 1
+        assert delays[1] == 2
 
     @pytest.mark.asyncio
     async def test_max_retries_exceeded(self):
         """Test that max retries limit is respected"""
-        # TODO: Implement with retry count verification
-        pass
+        call_count = 0
+
+        async def failing_func():
+            nonlocal call_count
+            call_count += 1
+            raise Exception("Connection timeout")
+
+        with pytest.raises(Exception, match="Connection timeout"):
+            await retry_with_backoff(failing_func, max_retries=2)
+
+        assert call_count == 3  # initial + 2 retries
