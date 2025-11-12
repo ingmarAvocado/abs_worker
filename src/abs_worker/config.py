@@ -16,6 +16,11 @@ class Settings(BaseSettings):
 
     # Blockchain settings
     required_confirmations: int = Field(default=6, gt=0)
+    poll_interval: int = Field(default=2, gt=0)  # Seconds between blockchain polls
+    max_poll_attempts: int = Field(default=100, gt=0)  # Maximum polling attempts
+    max_confirmation_wait: int = Field(default=600, gt=0)  # Max seconds to wait for confirmation
+
+    # Retry settings
     max_retries: int = Field(default=3, ge=1)
     retry_delay: int = Field(default=5, ge=1)
     retry_backoff_multiplier: float = Field(default=2.0, gt=1.0)

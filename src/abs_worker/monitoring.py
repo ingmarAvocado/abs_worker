@@ -7,15 +7,17 @@ This module handles:
 - Handling timeout and reverted transactions
 """
 
+import asyncio
+from typing import Optional, Dict, Any
 
-# from abs_blockchain import get_transaction_receipt, get_latest_block_number
-# from abs_utils.logger import get_logger
-from typing import Optional
+from abs_blockchain import BlockchainClient
+from abs_utils.logger import get_logger
+from .config import get_settings
 
-# logger = get_logger(__name__)
+logger = get_logger(__name__)
 
 
-async def monitor_transaction(doc_id: int, tx_hash: str) -> dict:
+async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
     """
     Monitor blockchain transaction until confirmed
 
@@ -33,65 +35,83 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> dict:
         TimeoutError: If max_confirmation_wait exceeded
         ValueError: If transaction reverted
     """
-    # TODO: Implement when abs_blockchain is available
-    # settings = get_settings()
-    # logger.info(f"Monitoring transaction {tx_hash} for document {doc_id}")
+    settings = get_settings()
+    logger.info(
+        f"Monitoring transaction {tx_hash} for document {doc_id}",
+        extra={"doc_id": doc_id, "tx_hash": tx_hash},
+    )
 
-    # attempts = 0
-    # start_time = asyncio.get_event_loop().time()
+    client = BlockchainClient()
+    attempts = 0
+    start_time = asyncio.get_event_loop().time()
 
-    # while attempts < settings.max_poll_attempts:
-    #     try:
-    #         # Get transaction receipt
-    #         receipt = await get_transaction_receipt(tx_hash)
+    while attempts < settings.max_poll_attempts:
+        try:
+            # Get transaction receipt
+            receipt = await client.get_transaction_receipt(tx_hash)
 
-    #         if receipt is None:
-    #             # Transaction not yet mined
-    #             logger.debug(f"Transaction {tx_hash} not yet mined, waiting...")
-    #             await asyncio.sleep(settings.poll_interval)
-    #             attempts += 1
-    #             continue
+            if receipt is None:
+                # Transaction not yet mined
+                logger.debug(
+                    f"Transaction {tx_hash} not yet mined, waiting...",
+                    extra={"tx_hash": tx_hash, "attempt": attempts},
+                )
+                await asyncio.sleep(settings.poll_interval)
+                attempts += 1
+                continue
 
-    #         # Check if transaction reverted
-    #         if receipt.get('status') == 0:
-    #             logger.error(f"Transaction {tx_hash} reverted")
-    #             raise ValueError(f"Transaction {tx_hash} reverted")
+            # Check if transaction reverted
+            if receipt.get("status") == 0:
+                logger.error(
+                    f"Transaction {tx_hash} reverted",
+                    extra={"tx_hash": tx_hash, "receipt": receipt},
+                )
+                raise ValueError(f"Transaction {tx_hash} reverted")
 
-    #         # Check confirmations
-    #         tx_block = receipt.get('blockNumber')
-    #         current_block = await get_latest_block_number()
-    #         confirmations = current_block - tx_block
+            # Check confirmations
+            tx_block = receipt.get("blockNumber")
+            current_block = await client.get_latest_block_number()
+            confirmations = current_block - tx_block
 
-    #         if confirmations >= settings.required_confirmations:
-    #             logger.info(
-    #                 f"Transaction {tx_hash} confirmed with {confirmations} confirmations"
-    #             )
-    #             return receipt
+            if confirmations >= settings.required_confirmations:
+                logger.info(
+                    f"Transaction {tx_hash} confirmed with {confirmations} confirmations",
+                    extra={
+                        "tx_hash": tx_hash,
+                        "confirmations": confirmations,
+                        "block_number": tx_block,
+                    },
+                )
+                return receipt
 
-    #         logger.debug(
-    #             f"Transaction {tx_hash} has {confirmations}/{settings.required_confirmations} confirmations"
-    #         )
+            logger.debug(
+                f"Transaction {tx_hash} has {confirmations}/{settings.required_confirmations} confirmations",
+                extra={"tx_hash": tx_hash, "confirmations": confirmations},
+            )
 
-    #     except Exception as e:
-    #         logger.warning(f"Error checking transaction {tx_hash}: {e}")
+        except ValueError:
+            # Re-raise ValueError (reverted transaction)
+            raise
+        except Exception as e:
+            logger.warning(
+                f"Error checking transaction {tx_hash}: {e}",
+                extra={"tx_hash": tx_hash, "error": str(e), "attempt": attempts},
+            )
 
-    #     # Check timeout
-    #     elapsed = asyncio.get_event_loop().time() - start_time
-    #     if elapsed > settings.max_confirmation_wait:
-    #         raise TimeoutError(
-    #             f"Transaction {tx_hash} confirmation timeout after {elapsed:.0f}s"
-    #         )
+        # Check timeout
+        elapsed = asyncio.get_event_loop().time() - start_time
+        if elapsed > settings.max_confirmation_wait:
+            raise TimeoutError(
+                f"Transaction {tx_hash} confirmation timeout after {elapsed:.0f}s"
+            )
 
-    #     await asyncio.sleep(settings.poll_interval)
-    #     attempts += 1
+        await asyncio.sleep(settings.poll_interval)
+        attempts += 1
 
-    # raise TimeoutError(f"Transaction {tx_hash} exceeded max poll attempts")
-
-    # Stub implementation
-    return {"status": 1, "transactionHash": tx_hash, "blockNumber": 12345}
+    raise TimeoutError(f"Transaction {tx_hash} exceeded max poll attempts")
 
 
-async def check_transaction_status(tx_hash: str) -> dict:
+async def check_transaction_status(tx_hash: str) -> Dict[str, Any]:
     """
     Check current status of a blockchain transaction
 
@@ -106,39 +126,38 @@ async def check_transaction_status(tx_hash: str) -> dict:
             "receipt": dict | None
         }
     """
-    # TODO: Implement when abs_blockchain is available
-    # try:
-    #     receipt = await get_transaction_receipt(tx_hash)
+    client = BlockchainClient()
 
-    #     if receipt is None:
-    #         return {"status": "pending", "confirmations": 0, "receipt": None}
+    try:
+        receipt = await client.get_transaction_receipt(tx_hash)
 
-    #     if receipt.get('status') == 0:
-    #         return {"status": "reverted", "confirmations": 0, "receipt": receipt}
+        if receipt is None:
+            return {"status": "pending", "confirmations": 0, "receipt": None}
 
-    #     tx_block = receipt.get('blockNumber')
-    #     current_block = await get_latest_block_number()
-    #     confirmations = current_block - tx_block
+        if receipt.get("status") == 0:
+            return {"status": "reverted", "confirmations": 0, "receipt": receipt}
 
-    #     return {
-    #         "status": "confirmed",
-    #         "confirmations": confirmations,
-    #         "receipt": receipt
-    #     }
+        tx_block = receipt.get("blockNumber")
+        current_block = await client.get_latest_block_number()
+        confirmations = current_block - tx_block
 
-    # except Exception as e:
-    #     logger.error(f"Failed to check transaction status for {tx_hash}: {e}")
-    #     raise
+        return {
+            "status": "confirmed",
+            "confirmations": confirmations,
+            "receipt": receipt,
+        }
 
-    # Stub implementation
-    return {
-        "status": "confirmed",
-        "confirmations": 3,
-        "receipt": {"status": 1, "transactionHash": tx_hash},
-    }
+    except Exception as e:
+        logger.error(
+            f"Failed to check transaction status for {tx_hash}: {e}",
+            extra={"tx_hash": tx_hash, "error": str(e)},
+        )
+        raise
 
 
-async def wait_for_confirmation(tx_hash: str, required_confirmations: Optional[int] = None) -> dict:
+async def wait_for_confirmation(
+    tx_hash: str, required_confirmations: Optional[int] = None
+) -> Dict[str, Any]:
     """
     Wait for transaction to receive required confirmations
 
@@ -153,11 +172,13 @@ async def wait_for_confirmation(tx_hash: str, required_confirmations: Optional[i
         ValueError: If transaction reverted
         TimeoutError: If confirmation timeout exceeded
     """
-    # settings = get_settings()
-    # confirmations_needed = required_confirmations or settings.required_confirmations
+    settings = get_settings()
+    confirmations_needed = required_confirmations or settings.required_confirmations
 
-    # TODO: Implement actual monitoring
-    # return await monitor_transaction(0, tx_hash)  # doc_id=0 for generic monitoring
+    logger.info(
+        f"Waiting for {confirmations_needed} confirmations for transaction {tx_hash}",
+        extra={"tx_hash": tx_hash, "required_confirmations": confirmations_needed},
+    )
 
-    # Stub implementation
-    return {"status": 1, "transactionHash": tx_hash, "blockNumber": 12345}
+    # Use monitor_transaction with doc_id=0 for generic monitoring
+    return await monitor_transaction(0, tx_hash)
