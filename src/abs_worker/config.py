@@ -2,85 +2,49 @@
 Configuration settings for abs_worker using Pydantic Settings
 """
 
+from functools import lru_cache
 from pydantic_settings import BaseSettings
-from pydantic import Field, ConfigDict
+from pydantic import Field, ConfigDict, field_validator
 
 
-class WorkerSettings(BaseSettings):
-    """Worker configuration settings"""
-
-    # Blockchain confirmation settings
-    required_confirmations: int = Field(
-        default=3,
-        description="Number of block confirmations required before marking transaction as complete"
-    )
-    max_confirmation_wait: int = Field(
-        default=600,
-        description="Maximum time to wait for transaction confirmation (seconds)"
-    )
-
-    # Retry settings
-    max_retries: int = Field(
-        default=3,
-        description="Maximum number of retry attempts for failed operations"
-    )
-    retry_delay: int = Field(
-        default=5,
-        description="Initial delay between retry attempts (seconds)"
-    )
-    retry_backoff_multiplier: float = Field(
-        default=2.0,
-        description="Multiplier for exponential backoff between retries"
-    )
-
-    # Transaction monitoring
-    poll_interval: int = Field(
-        default=2,
-        description="Interval between transaction status polls (seconds)"
-    )
-    max_poll_attempts: int = Field(
-        default=100,
-        description="Maximum number of polling attempts before timeout"
-    )
-
-    # Certificate settings
-    cert_storage_path: str = Field(
-        default="/var/abs_notary/certificates",
-        description="Base path for storing generated certificates"
-    )
-    cert_json_enabled: bool = Field(
-        default=True,
-        description="Generate signed JSON certificates"
-    )
-    cert_pdf_enabled: bool = Field(
-        default=True,
-        description="Generate signed PDF certificates"
-    )
-
-    # Worker settings
-    worker_name: str = Field(
-        default="abs_worker",
-        description="Worker service name for logging"
-    )
-    enable_structured_logging: bool = Field(
-        default=True,
-        description="Enable structured JSON logging via abs_utils"
-    )
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables and .env file."""
 
     model_config = ConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore"
     )
 
+    # Blockchain settings
+    required_confirmations: int = Field(default=6, gt=0)
+    max_retries: int = Field(default=3, ge=1)
+    retry_delay: int = Field(default=5, ge=1)
 
-# Global settings instance
-_settings: WorkerSettings | None = None
+    # Worker settings
+    worker_timeout: int = Field(default=300, gt=0)
+    max_concurrent_tasks: int = Field(default=10, gt=0)
+
+    # Optional settings
+    log_level: str = Field(default="INFO")
+    environment: str = Field(default="development")
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if v.upper() not in valid_levels:
+            raise ValueError(f"log_level must be one of {valid_levels}")
+        return v.upper()
 
 
-def get_settings() -> WorkerSettings:
-    """Get or create global settings instance"""
-    global _settings
-    if _settings is None:
-        _settings = WorkerSettings()
-    return _settings
+@lru_cache()
+def get_settings() -> Settings:
+    """
+    Get cached settings instance (singleton pattern).
+
+    Returns:
+        Settings: Application settings instance
+    """
+    return Settings()

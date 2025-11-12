@@ -4,7 +4,7 @@ Pytest configuration and shared fixtures for abs_worker tests
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from abs_worker.config import WorkerSettings
+from abs_worker.config import Settings
 
 # Import mock implementations
 from tests.mocks import (
@@ -29,19 +29,14 @@ from tests.mocks import (
 @pytest.fixture
 def worker_settings():
     """Provide test configuration settings"""
-    return WorkerSettings(
+    return Settings(
         required_confirmations=2,
-        max_confirmation_wait=60,
         max_retries=2,
         retry_delay=1,
-        retry_backoff_multiplier=1.5,
-        poll_interval=1,
-        max_poll_attempts=10,
-        cert_storage_path="/tmp/test_certs",
-        cert_json_enabled=True,
-        cert_pdf_enabled=True,
-        worker_name="test_worker",
-        enable_structured_logging=False,
+        worker_timeout=60,
+        max_concurrent_tasks=5,
+        log_level="DEBUG",
+        environment="test",
     )
 
 
@@ -145,13 +140,10 @@ def populated_document_repository():
 
 @pytest.fixture(autouse=True)
 def reset_settings():
-    """Reset settings between tests"""
-    from abs_worker.config import _settings
-    # Store original settings
-    original_settings = _settings
-    # Reset global settings to None
-    import abs_worker.config
-    abs_worker.config._settings = None
+    """Reset settings cache between tests"""
+    from abs_worker.config import get_settings
+    # Clear the LRU cache before each test
+    get_settings.cache_clear()
     yield
-    # Restore original settings after test
-    abs_worker.config._settings = original_settings
+    # Clear the LRU cache after each test
+    get_settings.cache_clear()

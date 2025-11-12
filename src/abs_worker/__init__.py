@@ -9,7 +9,7 @@ This package handles asynchronous blockchain operations including:
 - Error handling with retry logic
 """
 
-from .config import WorkerSettings
+from .config import Settings, get_settings
 from .notarization import process_hash_notarization, process_nft_notarization
 from .monitoring import monitor_transaction, check_transaction_status
 from .error_handler import handle_failed_transaction, is_retryable_error
@@ -19,7 +19,8 @@ __version__ = "0.1.0"
 
 __all__ = [
     # Configuration
-    "WorkerSettings",
+    "Settings",
+    "get_settings",
     # Core notarization
     "process_hash_notarization",
     "process_nft_notarization",
