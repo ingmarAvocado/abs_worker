@@ -354,12 +354,11 @@ See the mock implementations in `tests/mocks/` for expected interface contracts.
 
 When deploying examples to production:
 
-1. **Update dependencies** - Uncomment real abs_orm and abs_blockchain imports
+1. **Update dependencies** - Replace mock imports with real abs_orm and abs_blockchain
 2. **Configure settings** - Set environment variables in .env
 3. **Test integration** - Run integration tests
 4. **Monitor workers** - Add health checks and monitoring
-5. **Scale horizontally** - Use multiple worker processes
-6. **Consider Celery** - Migrate to Celery for Phase 2 if needed
+5. **Scale horizontally** - Use multiple worker processes with load balancing
 
 ## 🤝 Contributing
 

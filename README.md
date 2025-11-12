@@ -18,18 +18,12 @@ Blockchain transactions can take seconds to minutes to confirm. Instead of block
 
 ## Architecture
 
-**Phase 1 (MVP):** Business logic library used with FastAPI `BackgroundTasks`
+**Implementation:** Business logic library used with FastAPI `BackgroundTasks`
 - No message broker required
 - Simple, lightweight implementation
-- Perfect for development and small-scale production
-
-**Phase 2 (Scale):** Same logic wrapped as Celery tasks
-- Redis broker for task queue
-- Task persistence and retry
-- Distributed workers
-- Production-scale throughput
-
-The design allows you to start simple and scale when needed without rewriting business logic.
+- Perfect for development and production
+- Built-in retry logic with exponential backoff
+- Async/await for non-blocking operations
 
 ## Installation
 
@@ -44,9 +38,6 @@ poetry install
 
 # Or just production dependencies
 poetry install --only main
-
-# Install with Celery support (Phase 2)
-poetry install -E celery
 ```
 
 ## Quick Start
@@ -97,17 +88,6 @@ async def mint_nft(doc_id: int, background_tasks: BackgroundTasks):
     return {"status": "processing", "doc_id": doc_id}
 ```
 
-### Phase 2: Using with Celery (Future)
-
-```python
-from abs_worker.tasks import process_hash_notarization, process_nft_notarization
-
-@app.post("/documents/sign/{doc_id}")
-async def sign_document(doc_id: int):
-    """Trigger blockchain notarization via Celery"""
-    process_hash_notarization.delay(doc_id)
-    return {"status": "processing"}
-```
 
 ## Core Functions
 
@@ -261,7 +241,7 @@ abs_worker/
 │   ├── monitoring.py            # Transaction monitoring
 │   ├── error_handler.py         # Error handling & retry
 │   ├── certificates.py          # Certificate generation
-│   └── tasks.py                 # Celery task wrappers (Phase 2)
+│   └── tasks.py                 # Task definitions (placeholder)
 ├── examples/
 │   ├── 01_basic_usage.py        # Simple hash notarization
 │   ├── 02_nft_minting.py        # NFT minting example
@@ -402,36 +382,6 @@ async def get_document_status(doc_id: int):
         }
 ```
 
-## Migration Path to Celery
-
-When you need Celery for production scale:
-
-1. **Install Celery extras:**
-   ```bash
-   poetry install -E celery
-   ```
-
-2. **Start Redis broker:**
-   ```bash
-   docker run -d -p 6379:6379 redis:alpine
-   ```
-
-3. **Start Celery worker:**
-   ```bash
-   poetry run celery -A abs_worker.tasks worker --loglevel=info
-   ```
-
-4. **Update API to use Celery:**
-   ```python
-   # Before (FastAPI BackgroundTasks)
-   background_tasks.add_task(process_hash_notarization, doc_id)
-
-   # After (Celery)
-   from abs_worker.tasks import process_hash_notarization
-   process_hash_notarization.delay(doc_id)
-   ```
-
-The business logic remains the same!
 
 ## License
 

@@ -12,8 +12,9 @@
 - Users need immediate responses while work happens in the background
 
 **Architecture Strategy:**
-- **Phase 1 (MVP):** Business logic library used with FastAPI BackgroundTasks
-- **Phase 2 (Production):** Same logic wrapped as Celery tasks with Redis broker
+- Business logic library used with FastAPI BackgroundTasks
+- Async/await for non-blocking operations
+- Built-in retry logic with exponential backoff
 
 **Core Responsibilities:**
 1. **Process hash notarizations** - Call blockchain to record file hashes
@@ -24,7 +25,7 @@
 
 ## Quick Examples
 
-### Phase 1: FastAPI BackgroundTasks (Current Implementation)
+### FastAPI BackgroundTasks Integration
 
 #### Business Logic Functions
 
@@ -134,7 +135,7 @@ src/abs_worker/
 │   ├── generate_signed_json()
 │   ├── generate_signed_pdf()
 │   └── _sign_certificate()
-└── tasks.py                 # Future Celery task wrappers (Phase 2)
+└── tasks.py                 # Task definitions (placeholder)
 ```
 
 ## Core Functions Reference
@@ -348,34 +349,6 @@ class WorkerSettings(BaseSettings):
 3. **Format code**: `poetry run black src tests` or `make format`
 4. **Type checking**: `poetry run mypy src` or `make lint`
 
-## Phase 2: Celery Integration (Future)
-
-When ready to scale, wrap the same business logic as Celery tasks:
-
-```python
-# src/abs_worker/tasks.py
-from celery import Celery
-from .notarization import process_hash_notarization as _process_hash
-
-app = Celery('abs_worker', broker='redis://localhost:6379')
-
-@app.task(bind=True, max_retries=3)
-def process_hash_notarization(self, doc_id: int):
-    try:
-        return _process_hash(doc_id)
-    except Exception as exc:
-        raise self.retry(exc=exc, countdown=60)
-```
-
-Then in abs_api_server:
-```python
-from abs_worker.tasks import process_hash_notarization
-
-@router.post("/documents/sign/{doc_id}")
-async def sign_document(doc_id: int):
-    process_hash_notarization.delay(doc_id)
-    return {"status": "processing"}
-```
 
 ## Important Notes
 
@@ -398,6 +371,6 @@ async def sign_document(doc_id: int):
 
 ## Next Steps
 
-This library provides the business logic for background processing. It's designed to work with FastAPI BackgroundTasks initially, with an easy migration path to Celery when needed.
+This library provides the business logic for background processing using FastAPI BackgroundTasks.
 
 Check `abs_api_server` for integration examples of how endpoints enqueue these tasks.
