@@ -57,7 +57,6 @@ __all__ = [
     "get_session",
     "create_mock_document",
     "create_mock_nft_document",
-
     # Blockchain mocks
     "MockBlockchain",
     "BlockchainException",
@@ -68,7 +67,6 @@ __all__ = [
     "create_successful_blockchain",
     "create_failing_blockchain",
     "create_timeout_blockchain",
-
     # Utils mocks
     "get_logger",
     "MockLogger",
@@ -77,7 +75,6 @@ __all__ = [
     "ConfigurationError",
     "create_test_logger",
     "create_test_exception",
-
     # Factories
     "create_document",
     "create_hash_document",

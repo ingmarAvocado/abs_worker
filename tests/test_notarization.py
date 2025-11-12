@@ -3,10 +3,7 @@ Tests for notarization module
 """
 
 import pytest
-from abs_worker.notarization import (
-    process_hash_notarization,
-    process_nft_notarization
-)
+from abs_worker.notarization import process_hash_notarization, process_nft_notarization
 
 
 class TestProcessHashNotarization:
@@ -22,11 +19,7 @@ class TestProcessHashNotarization:
 
     @pytest.mark.asyncio
     async def test_successful_hash_notarization(
-        self,
-        mock_document,
-        mock_db_session,
-        mock_document_repository,
-        mock_blockchain
+        self, mock_document, mock_db_session, mock_document_repository, mock_blockchain
     ):
         """Test complete hash notarization workflow"""
         # TODO: Implement when abs_orm and abs_blockchain are available
@@ -46,11 +39,7 @@ class TestProcessHashNotarization:
 
     @pytest.mark.asyncio
     async def test_blockchain_error_handled(
-        self,
-        mock_document,
-        mock_db_session,
-        mock_document_repository,
-        mock_blockchain
+        self, mock_document, mock_db_session, mock_document_repository, mock_blockchain
     ):
         """Test that blockchain errors are handled properly"""
         # TODO: Implement with blockchain error mock
@@ -63,7 +52,7 @@ class TestProcessHashNotarization:
         mock_db_session,
         mock_document_repository,
         mock_blockchain,
-        worker_settings
+        worker_settings,
     ):
         """Test that certificates are generated when enabled"""
         # TODO: Implement with certificate generation verification
@@ -83,11 +72,7 @@ class TestProcessNftNotarization:
 
     @pytest.mark.asyncio
     async def test_successful_nft_minting(
-        self,
-        mock_nft_document,
-        mock_db_session,
-        mock_document_repository,
-        mock_blockchain
+        self, mock_nft_document, mock_db_session, mock_document_repository, mock_blockchain
     ):
         """Test complete NFT minting workflow"""
         # TODO: Implement when abs_orm and abs_blockchain are available
@@ -103,11 +88,7 @@ class TestProcessNftNotarization:
 
     @pytest.mark.asyncio
     async def test_arweave_upload_error(
-        self,
-        mock_nft_document,
-        mock_db_session,
-        mock_document_repository,
-        mock_blockchain
+        self, mock_nft_document, mock_db_session, mock_document_repository, mock_blockchain
     ):
         """Test handling of Arweave upload errors"""
         # TODO: Implement with Arweave error mock
@@ -115,11 +96,7 @@ class TestProcessNftNotarization:
 
     @pytest.mark.asyncio
     async def test_nft_minting_error(
-        self,
-        mock_nft_document,
-        mock_db_session,
-        mock_document_repository,
-        mock_blockchain
+        self, mock_nft_document, mock_db_session, mock_document_repository, mock_blockchain
     ):
         """Test handling of NFT minting errors"""
         # TODO: Implement with NFT minting error mock
@@ -127,11 +104,7 @@ class TestProcessNftNotarization:
 
     @pytest.mark.asyncio
     async def test_nft_document_updated_correctly(
-        self,
-        mock_nft_document,
-        mock_db_session,
-        mock_document_repository,
-        mock_blockchain
+        self, mock_nft_document, mock_db_session, mock_document_repository, mock_blockchain
     ):
         """Test that NFT document is updated with all required fields"""
         # TODO: Implement with field verification:

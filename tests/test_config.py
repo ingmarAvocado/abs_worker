@@ -5,7 +5,6 @@ Tests for configuration module
 import pytest
 from pydantic import ValidationError
 from abs_worker.config import get_settings, Settings
-import os
 
 
 def test_settings_loads_defaults():
@@ -113,11 +112,13 @@ def test_case_insensitive_env_vars(monkeypatch):
 def test_env_file_loading(tmp_path, monkeypatch):
     """Test loading settings from .env file."""
     env_file = tmp_path / ".env"
-    env_file.write_text("""
+    env_file.write_text(
+        """
 REQUIRED_CONFIRMATIONS=15
 MAX_RETRIES=8
 LOG_LEVEL=ERROR
-""")
+"""
+    )
 
     # Change to the temp directory so .env is found
     monkeypatch.chdir(tmp_path)

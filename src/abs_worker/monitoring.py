@@ -7,10 +7,10 @@ This module handles:
 - Handling timeout and reverted transactions
 """
 
-import asyncio
+
 # from abs_blockchain import get_transaction_receipt, get_latest_block_number
 # from abs_utils.logger import get_logger
-from .config import get_settings
+from typing import Optional
 
 # logger = get_logger(__name__)
 
@@ -134,11 +134,11 @@ async def check_transaction_status(tx_hash: str) -> dict:
     return {
         "status": "confirmed",
         "confirmations": 3,
-        "receipt": {"status": 1, "transactionHash": tx_hash}
+        "receipt": {"status": 1, "transactionHash": tx_hash},
     }
 
 
-async def wait_for_confirmation(tx_hash: str, required_confirmations: int = None) -> dict:
+async def wait_for_confirmation(tx_hash: str, required_confirmations: Optional[int] = None) -> dict:
     """
     Wait for transaction to receive required confirmations
 
@@ -153,8 +153,8 @@ async def wait_for_confirmation(tx_hash: str, required_confirmations: int = None
         ValueError: If transaction reverted
         TimeoutError: If confirmation timeout exceeded
     """
-    settings = get_settings()
-    confirmations_needed = required_confirmations or settings.required_confirmations
+    # settings = get_settings()
+    # confirmations_needed = required_confirmations or settings.required_confirmations
 
     # TODO: Implement actual monitoring
     # return await monitor_transaction(0, tx_hash)  # doc_id=0 for generic monitoring

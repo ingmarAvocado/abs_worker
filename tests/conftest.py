@@ -3,18 +3,15 @@ Pytest configuration and shared fixtures for abs_worker tests
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from abs_worker.config import Settings
 
 # Import mock implementations
 from tests.mocks import (
-    MockDocument,
-    MockDocumentRepository,
     MockBlockchain,
     DocStatus,
     DocType,
     get_session,
-    create_document,
     create_hash_document,
     create_nft_document,
     create_processing_document,
@@ -142,6 +139,7 @@ def populated_document_repository():
 def reset_settings():
     """Reset settings cache between tests"""
     from abs_worker.config import get_settings
+
     # Clear the LRU cache before each test
     get_settings.cache_clear()
     yield

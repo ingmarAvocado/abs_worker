@@ -8,6 +8,7 @@ This module handles:
 """
 
 import asyncio
+
 # from abs_orm import get_session, DocumentRepository, DocStatus
 # from abs_utils.logger import get_logger
 from .config import get_settings
@@ -131,7 +132,7 @@ async def retry_with_backoff(
     max_retries: int = None,
     initial_delay: int = None,
     backoff_multiplier: float = None,
-    **kwargs
+    **kwargs,
 ):
     """
     Retry a function with exponential backoff
@@ -172,7 +173,7 @@ async def retry_with_backoff(
                 # logger.error(f"Non-retryable error, not retrying: {e}")
                 raise
 
-            wait_time = delay * (multiplier ** attempt)
+            wait_time = delay * (multiplier**attempt)
             # logger.warning(
             #     f"Attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
             #     f"Retrying in {wait_time:.1f}s..."

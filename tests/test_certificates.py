@@ -3,11 +3,7 @@ Tests for certificate generation module
 """
 
 import pytest
-from abs_worker.certificates import (
-    generate_signed_json,
-    generate_signed_pdf,
-    _sign_certificate
-)
+from abs_worker.certificates import generate_signed_json, generate_signed_pdf, _sign_certificate
 
 
 class TestGenerateSignedJson:

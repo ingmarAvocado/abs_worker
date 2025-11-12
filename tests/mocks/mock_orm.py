@@ -9,12 +9,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from enum import Enum
-from typing import AsyncContextManager, Dict, Optional
-from unittest.mock import AsyncMock
+from typing import Dict, Optional
 
 
 class DocStatus(str, Enum):
     """Document status enumeration"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     ON_CHAIN = "on_chain"
@@ -23,6 +23,7 @@ class DocStatus(str, Enum):
 
 class DocType(str, Enum):
     """Document type enumeration"""
+
     HASH = "hash"
     NFT = "nft"
 
@@ -30,6 +31,7 @@ class DocType(str, Enum):
 @dataclass
 class MockDocument:
     """Mock Document model matching abs_orm.Document interface"""
+
     id: int
     file_name: str
     file_hash: str
@@ -80,9 +82,9 @@ class MockDocumentRepository:
         self.next_id += 1
 
         # Set defaults for required fields
-        doc_data.setdefault('status', DocStatus.PENDING)
-        doc_data.setdefault('type', DocType.HASH)
-        doc_data.setdefault('owner_id', 1)
+        doc_data.setdefault("status", DocStatus.PENDING)
+        doc_data.setdefault("type", DocType.HASH)
+        doc_data.setdefault("owner_id", 1)
 
         doc = MockDocument(id=doc_id, **doc_data)
         self.documents[doc_id] = doc
@@ -123,13 +125,13 @@ async def get_session():
 def create_mock_document(**overrides) -> MockDocument:
     """Create a mock document with test defaults + overrides"""
     defaults = {
-        'id': 1,
-        'file_name': 'test.pdf',
-        'file_hash': '0xabc123def456',
-        'file_path': '/tmp/test.pdf',
-        'status': DocStatus.PENDING,
-        'type': DocType.HASH,
-        'owner_id': 1,
+        "id": 1,
+        "file_name": "test.pdf",
+        "file_hash": "0xabc123def456",
+        "file_path": "/tmp/test.pdf",
+        "status": DocStatus.PENDING,
+        "type": DocType.HASH,
+        "owner_id": 1,
     }
     defaults.update(overrides)
     return MockDocument(**defaults)
@@ -138,13 +140,13 @@ def create_mock_document(**overrides) -> MockDocument:
 def create_mock_nft_document(**overrides) -> MockDocument:
     """Create a mock NFT document with test defaults + overrides"""
     defaults = {
-        'id': 2,
-        'file_name': 'nft.png',
-        'file_hash': '0xdef456abc789',
-        'file_path': '/tmp/nft.png',
-        'status': DocStatus.PENDING,
-        'type': DocType.NFT,
-        'owner_id': 1,
+        "id": 2,
+        "file_name": "nft.png",
+        "file_hash": "0xdef456abc789",
+        "file_path": "/tmp/nft.png",
+        "status": DocStatus.PENDING,
+        "type": DocType.NFT,
+        "owner_id": 1,
     }
     defaults.update(overrides)
     return MockDocument(**defaults)

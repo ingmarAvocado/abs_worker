@@ -6,7 +6,7 @@ import pytest
 from abs_worker.monitoring import (
     monitor_transaction,
     check_transaction_status,
-    wait_for_confirmation
+    wait_for_confirmation,
 )
 
 

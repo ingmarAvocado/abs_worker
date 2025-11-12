@@ -11,26 +11,31 @@ from typing import Dict, Any
 
 class BlockchainException(Exception):
     """Base exception for blockchain operations"""
+
     pass
 
 
 class InsufficientFundsException(BlockchainException):
     """Raised when account has insufficient funds for transaction"""
+
     pass
 
 
 class ContractRevertedException(BlockchainException):
     """Raised when smart contract execution reverts"""
+
     pass
 
 
 class GasEstimationException(BlockchainException):
     """Raised when gas estimation fails"""
+
     pass
 
 
 class NetworkTimeoutException(BlockchainException):
     """Raised when network operations timeout"""
+
     pass
 
 
@@ -86,7 +91,7 @@ class MockBlockchain:
                 "transactionHash": tx_hash,
                 "blockNumber": None,
                 "status": 0,  # Not found
-                "confirmations": 0
+                "confirmations": 0,
             }
 
         tx = self.transactions[tx_hash]
@@ -107,7 +112,9 @@ class MockBlockchain:
         """Mock get_latest_block_number"""
         return self.current_block
 
-    async def wait_for_confirmations(self, tx_hash: str, required_confirmations: int = 3) -> Dict[str, Any]:
+    async def wait_for_confirmations(
+        self, tx_hash: str, required_confirmations: int = 3
+    ) -> Dict[str, Any]:
         """Mock wait_for_confirmations - simulates waiting for block confirmations"""
         # Advance block number to simulate mining
         self.current_block += required_confirmations
@@ -122,9 +129,9 @@ class MockBlockchain:
 
     async def _check_for_failure(self):
         """Check if next operation should fail"""
-        if hasattr(self, '_next_failure'):
+        if hasattr(self, "_next_failure"):
             exc = self._next_failure
-            delattr(self, '_next_failure')
+            delattr(self, "_next_failure")
             raise exc
 
 

@@ -3,24 +3,22 @@ Configuration settings for abs_worker using Pydantic Settings
 """
 
 from functools import lru_cache
-from pydantic_settings import BaseSettings
-from pydantic import Field, ConfigDict, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and .env file."""
 
-    model_config = ConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     # Blockchain settings
     required_confirmations: int = Field(default=6, gt=0)
     max_retries: int = Field(default=3, ge=1)
     retry_delay: int = Field(default=5, ge=1)
+    retry_backoff_multiplier: float = Field(default=2.0, gt=1.0)
 
     # Worker settings
     worker_timeout: int = Field(default=300, gt=0)

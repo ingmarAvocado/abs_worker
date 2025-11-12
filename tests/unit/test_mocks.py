@@ -7,7 +7,6 @@ defined in the issue requirements.
 
 import pytest
 from tests.mocks import (
-    MockDocument,
     MockDocumentRepository,
     MockBlockchain,
     DocStatus,
@@ -36,21 +35,21 @@ class TestMockDocumentContract:
         doc = create_document()
 
         # Required fields
-        assert hasattr(doc, 'id')
-        assert hasattr(doc, 'file_name')
-        assert hasattr(doc, 'file_hash')
-        assert hasattr(doc, 'file_path')
-        assert hasattr(doc, 'status')
-        assert hasattr(doc, 'type')
-        assert hasattr(doc, 'owner_id')
-        assert hasattr(doc, 'created_at')
+        assert hasattr(doc, "id")
+        assert hasattr(doc, "file_name")
+        assert hasattr(doc, "file_hash")
+        assert hasattr(doc, "file_path")
+        assert hasattr(doc, "status")
+        assert hasattr(doc, "type")
+        assert hasattr(doc, "owner_id")
+        assert hasattr(doc, "created_at")
 
         # Optional fields
-        assert hasattr(doc, 'transaction_hash')
-        assert hasattr(doc, 'arweave_file_url')
-        assert hasattr(doc, 'arweave_metadata_url')
-        assert hasattr(doc, 'nft_token_id')
-        assert hasattr(doc, 'error_message')
+        assert hasattr(doc, "transaction_hash")
+        assert hasattr(doc, "arweave_file_url")
+        assert hasattr(doc, "arweave_metadata_url")
+        assert hasattr(doc, "nft_token_id")
+        assert hasattr(doc, "error_message")
 
     def test_document_field_types(self):
         """Test document fields have correct types"""
@@ -114,14 +113,14 @@ class TestMockDocumentRepositoryContract:
         repo = MockDocumentRepository()
 
         doc_data = {
-            'file_name': 'test.pdf',
-            'file_hash': '0x123',
-            'file_path': '/tmp/test.pdf',
+            "file_name": "test.pdf",
+            "file_hash": "0x123",
+            "file_path": "/tmp/test.pdf",
         }
 
         created = await repo.create(doc_data)
         assert created.id == 1  # First document
-        assert created.file_name == 'test.pdf'
+        assert created.file_name == "test.pdf"
         assert created.status == DocStatus.PENDING  # Default
 
 
@@ -216,11 +215,11 @@ class TestMockUtilsContract:
         logger = get_logger("test")
 
         # Should have logging methods
-        assert hasattr(logger, 'debug')
-        assert hasattr(logger, 'info')
-        assert hasattr(logger, 'warning')
-        assert hasattr(logger, 'error')
-        assert hasattr(logger, 'critical')
+        assert hasattr(logger, "debug")
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "warning")
+        assert hasattr(logger, "error")
+        assert hasattr(logger, "critical")
 
     def test_logger_extra_parameter(self):
         """Test logger accepts extra parameter"""
@@ -259,9 +258,9 @@ class TestMockSessionContract:
     async def test_session_context_manager(self):
         """Test session is async context manager"""
         async with get_session() as session:
-            assert hasattr(session, 'commit')
-            assert hasattr(session, 'rollback')
-            assert hasattr(session, 'close')
+            assert hasattr(session, "commit")
+            assert hasattr(session, "rollback")
+            assert hasattr(session, "close")
 
             # Test session methods are async
             await session.commit()
@@ -308,6 +307,7 @@ class TestMockImports:
     def test_mock_orm_imports(self):
         """Test mock_orm module imports"""
         from tests.mocks.mock_orm import MockDocument, MockDocumentRepository, DocStatus, DocType
+
         assert MockDocument is not None
         assert MockDocumentRepository is not None
         assert DocStatus is not None
@@ -316,17 +316,20 @@ class TestMockImports:
     def test_mock_blockchain_imports(self):
         """Test mock_blockchain module imports"""
         from tests.mocks.mock_blockchain import MockBlockchain, BlockchainException
+
         assert MockBlockchain is not None
         assert BlockchainException is not None
 
     def test_mock_utils_imports(self):
         """Test mock_utils module imports"""
         from tests.mocks.mock_utils import get_logger, MockException
+
         assert get_logger is not None
         assert MockException is not None
 
     def test_factories_imports(self):
         """Test factories module imports"""
         from tests.mocks.factories import create_document, create_hash_document
+
         assert create_document is not None
         assert create_hash_document is not None
