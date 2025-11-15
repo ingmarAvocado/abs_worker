@@ -174,8 +174,10 @@ class TestRetryWithBackoff:
     """Tests for retry_with_backoff function"""
 
     @pytest.mark.asyncio
-    async def test_successful_call_no_retry(self):
+    async def test_successful_call_no_retry(self, worker_settings, monkeypatch):
         """Test that successful calls don't retry"""
+        monkeypatch.setattr("abs_worker.error_handler.get_settings", lambda: worker_settings)
+
         call_count = 0
 
         async def successful_func():
@@ -188,8 +190,10 @@ class TestRetryWithBackoff:
         assert call_count == 1
 
     @pytest.mark.asyncio
-    async def test_retryable_error_retries(self):
+    async def test_retryable_error_retries(self, worker_settings, monkeypatch):
         """Test that retryable errors trigger retries"""
+        monkeypatch.setattr("abs_worker.error_handler.get_settings", lambda: worker_settings)
+
         call_count = 0
 
         async def failing_func():
@@ -204,8 +208,10 @@ class TestRetryWithBackoff:
         assert call_count == 3
 
     @pytest.mark.asyncio
-    async def test_non_retryable_error_no_retry(self):
+    async def test_non_retryable_error_no_retry(self, worker_settings, monkeypatch):
         """Test that non-retryable errors don't retry"""
+        monkeypatch.setattr("abs_worker.error_handler.get_settings", lambda: worker_settings)
+
         call_count = 0
 
         async def failing_func():
@@ -219,8 +225,10 @@ class TestRetryWithBackoff:
         assert call_count == 1
 
     @pytest.mark.asyncio
-    async def test_exponential_backoff(self):
+    async def test_exponential_backoff(self, worker_settings, monkeypatch):
         """Test that backoff delays increase exponentially"""
+        monkeypatch.setattr("abs_worker.error_handler.get_settings", lambda: worker_settings)
+
         delays = []
 
         async def failing_func():
@@ -249,8 +257,10 @@ class TestRetryWithBackoff:
         assert delays[1] == 2
 
     @pytest.mark.asyncio
-    async def test_max_retries_exceeded(self):
+    async def test_max_retries_exceeded(self, worker_settings, monkeypatch):
         """Test that max retries limit is respected"""
+        monkeypatch.setattr("abs_worker.error_handler.get_settings", lambda: worker_settings)
+
         call_count = 0
 
         async def failing_func():

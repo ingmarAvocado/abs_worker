@@ -45,7 +45,7 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
     attempts = 0
     start_time = asyncio.get_event_loop().time()
 
-    while attempts < settings.max_poll_attempts:
+    while attempts < settings.blockchain.max_poll_attempts:
         try:
             # Get transaction receipt
             receipt = await client.get_transaction_receipt(tx_hash)
@@ -56,7 +56,7 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
                     f"Transaction {tx_hash} not yet mined, waiting...",
                     extra={"tx_hash": tx_hash, "attempt": attempts},
                 )
-                await asyncio.sleep(settings.poll_interval)
+                await asyncio.sleep(settings.blockchain.poll_interval)
                 attempts += 1
                 continue
 
@@ -73,7 +73,7 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
             current_block = await client.get_latest_block_number()
             confirmations = current_block - tx_block
 
-            if confirmations >= settings.required_confirmations:
+            if confirmations >= settings.blockchain.required_confirmations:
                 logger.info(
                     f"Transaction {tx_hash} confirmed with {confirmations} confirmations",
                     extra={
@@ -85,7 +85,7 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
                 return receipt
 
             logger.debug(
-                f"Transaction {tx_hash} has {confirmations}/{settings.required_confirmations} confirmations",
+                f"Transaction {tx_hash} has {confirmations}/{settings.blockchain.required_confirmations} confirmations",
                 extra={"tx_hash": tx_hash, "confirmations": confirmations},
             )
 
@@ -100,12 +100,12 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
 
         # Check timeout
         elapsed = asyncio.get_event_loop().time() - start_time
-        if elapsed > settings.max_confirmation_wait:
+        if elapsed > settings.blockchain.max_confirmation_wait:
             raise TimeoutError(
                 f"Transaction {tx_hash} confirmation timeout after {elapsed:.0f}s"
             )
 
-        await asyncio.sleep(settings.poll_interval)
+        await asyncio.sleep(settings.blockchain.poll_interval)
         attempts += 1
 
     raise TimeoutError(f"Transaction {tx_hash} exceeded max poll attempts")
@@ -173,7 +173,7 @@ async def wait_for_confirmation(
         TimeoutError: If confirmation timeout exceeded
     """
     settings = get_settings()
-    confirmations_needed = required_confirmations or settings.required_confirmations
+    confirmations_needed = required_confirmations or settings.blockchain.required_confirmations
 
     logger.info(
         f"Waiting for {confirmations_needed} confirmations for transaction {tx_hash}",

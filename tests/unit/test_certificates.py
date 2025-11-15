@@ -64,8 +64,9 @@ def temp_cert_dir(tmp_path):
 def mock_settings(temp_cert_dir):
     """Create mock settings with temporary certificate directory"""
     settings = Mock()
-    settings.cert_storage_path = str(temp_cert_dir)
-    settings.signing_key_path = "/etc/abs_notary/signing_key.pem"
+    settings.certificate = Mock()
+    settings.certificate.storage_path = str(temp_cert_dir)
+    settings.certificate.signing_key_path = "/etc/abs_notary/signing_key.pem"
     return settings
 
 
@@ -154,7 +155,7 @@ class TestGenerateSignedJson:
         cert_path = await generate_signed_json(mock_document)
 
         # Check path structure: {cert_dir}/{owner_id}/cert_{doc_id}_{hash_prefix}.json
-        expected_dir = Path(mock_settings.cert_storage_path) / "456"  # owner_id
+        expected_dir = Path(mock_settings.certificate.storage_path) / "456"  # owner_id
         assert expected_dir.exists()
 
         path = Path(cert_path)
@@ -395,7 +396,7 @@ class TestGenerateSignedPdf:
         cert_path = await generate_signed_pdf(mock_document)
 
         # Check path structure
-        expected_dir = Path(mock_settings.cert_storage_path) / "456"  # owner_id
+        expected_dir = Path(mock_settings.certificate.storage_path) / "456"  # owner_id
         assert expected_dir.exists()
 
         path = Path(cert_path)
@@ -558,7 +559,7 @@ class TestSignCertificate:
         """Test that missing signing key raises SigningKeyNotFoundError"""
         from abs_worker.certificates import SigningKeyNotFoundError
 
-        mock_settings.signing_key_path = "/non/existent/key.pem"
+        mock_settings.certificate.signing_key_path = "/non/existent/key.pem"
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
         monkeypatch.setenv("CERTIFICATE_SIGNING_KEY", "")  # Ensure env var is also empty
 
@@ -585,7 +586,8 @@ class TestErrorHandling:
         shutil.rmtree(temp_dir)  # Delete it
 
         mock_settings = Mock()
-        mock_settings.cert_storage_path = temp_dir
+        mock_settings.certificate = Mock()
+        mock_settings.certificate.storage_path = temp_dir
 
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
 
@@ -641,7 +643,7 @@ class TestErrorHandling:
         # Make file world-readable (insecure)
         key_file.chmod(0o644)  # rw-r--r--
 
-        mock_settings.signing_key_path = str(key_file)
+        mock_settings.certificate.signing_key_path = str(key_file)
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
         monkeypatch.setenv("CERTIFICATE_SIGNING_KEY", "")  # Ensure env var is empty
 
@@ -665,7 +667,7 @@ class TestErrorHandling:
         # Make file owner-only readable (secure)
         key_file.chmod(0o600)  # rw-------
 
-        mock_settings.signing_key_path = str(key_file)
+        mock_settings.certificate.signing_key_path = str(key_file)
         monkeypatch.setenv("CERTIFICATE_SIGNING_KEY", "")  # Ensure env var is empty
 
         # Should successfully read the key

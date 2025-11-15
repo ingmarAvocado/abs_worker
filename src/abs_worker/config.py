@@ -1,45 +1,198 @@
 """
 Configuration settings for abs_worker using Pydantic Settings
+
+Settings are organized into logical groups for better maintainability:
+- BlockchainSettings: Transaction confirmation and polling configuration
+- RetrySettings: Error handling and retry behavior
+- WorkerSettings: Worker execution and concurrency limits
+- CertificateSettings: Certificate storage and signing key paths
 """
 
+import os
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
 
 
-class Settings(BaseSettings):
-    """Application settings loaded from environment variables and .env file."""
+class BlockchainSettings(BaseSettings):
+    """Blockchain transaction and polling configuration."""
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+        env_prefix="BLOCKCHAIN_",
+        case_sensitive=False,
     )
 
-    # Blockchain settings
-    required_confirmations: int = Field(default=6, gt=0)
-    poll_interval: int = Field(default=2, gt=0)  # Seconds between blockchain polls
-    max_poll_attempts: int = Field(default=100, gt=0)  # Maximum polling attempts
-    max_confirmation_wait: int = Field(default=600, gt=0)  # Max seconds to wait for confirmation
+    required_confirmations: int = Field(
+        default=6,
+        gt=0,
+        description="Number of block confirmations required for finality",
+    )
+    poll_interval: int = Field(
+        default=2,
+        gt=0,
+        description="Seconds between blockchain polls",
+    )
+    max_poll_attempts: int = Field(
+        default=100,
+        gt=0,
+        description="Maximum number of polling attempts",
+    )
+    max_confirmation_wait: int = Field(
+        default=600,
+        gt=0,
+        description="Maximum seconds to wait for transaction confirmation",
+    )
 
-    # Retry settings
-    max_retries: int = Field(default=3, ge=1)
-    retry_delay: int = Field(default=5, ge=1)
-    retry_backoff_multiplier: float = Field(default=2.0, gt=1.0)
 
-    # Worker settings
-    worker_timeout: int = Field(default=300, gt=0)
-    max_concurrent_tasks: int = Field(default=10, gt=0)
+class RetrySettings(BaseSettings):
+    """Error handling and retry behavior configuration."""
 
-    # Certificate settings
-    cert_storage_path: str = Field(default="/var/abs_notary/certificates")
-    signing_key_path: str = Field(default="/etc/abs_notary/signing_key.pem")
+    model_config = SettingsConfigDict(
+        env_prefix="RETRY_",
+        case_sensitive=False,
+    )
 
-    # Optional settings
-    log_level: str = Field(default="INFO")
-    environment: str = Field(default="development")
+    max_retries: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum number of retry attempts for failed operations",
+    )
+    retry_delay: int = Field(
+        default=5,
+        ge=1,
+        description="Initial delay in seconds before first retry",
+    )
+    backoff_multiplier: float = Field(
+        default=2.0,
+        gt=1.0,
+        description="Multiplier for exponential backoff between retries",
+    )
+
+
+class WorkerSettings(BaseSettings):
+    """Worker execution and concurrency configuration."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="WORKER_",
+        case_sensitive=False,
+    )
+
+    timeout: int = Field(
+        default=300,
+        gt=0,
+        description="Maximum seconds for a single worker task",
+    )
+    max_concurrent_tasks: int = Field(
+        default=10,
+        gt=0,
+        description="Maximum number of concurrent worker tasks",
+    )
+
+
+class CertificateSettings(BaseSettings):
+    """Certificate storage and signing configuration."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="CERTIFICATE_",
+        case_sensitive=False,
+    )
+
+    storage_path: str = Field(
+        description="Directory path for storing generated certificates (auto-created if missing)",
+    )
+    signing_key_path: str = Field(
+        description="File path to ECDSA signing key (must exist with secure permissions)",
+    )
+
+    @field_validator("signing_key_path")
+    @classmethod
+    def validate_signing_key_path(cls, v: str) -> str:
+        """
+        Validate signing key file exists and is readable.
+
+        Raises:
+            ValueError: If file doesn't exist or isn't readable
+        """
+        if not os.path.exists(v):
+            raise ValueError(f"Signing key path does not exist: {v}")
+        if not os.access(v, os.R_OK):
+            raise ValueError(f"Signing key path is not readable: {v}")
+        return v
+
+    @field_validator("storage_path")
+    @classmethod
+    def validate_storage_path(cls, v: str) -> str:
+        """
+        Validate or create certificate storage directory.
+
+        Auto-creates the directory if it doesn't exist. Validates write permissions.
+
+        Raises:
+            ValueError: If directory cannot be created or isn't writable
+        """
+        # Try to create directory if it doesn't exist
+        if not os.path.exists(v):
+            try:
+                os.makedirs(v, exist_ok=True)
+            except OSError as e:
+                raise ValueError(
+                    f"Cannot create certificate storage path: {v} - {e}"
+                ) from e
+
+        # Verify write permissions
+        if not os.access(v, os.W_OK):
+            raise ValueError(f"Certificate storage path is not writable: {v}")
+
+        return v
+
+
+class Settings(BaseSettings):
+    """
+    Main application settings loaded from environment variables and .env file.
+
+    Settings are organized into logical groups:
+    - blockchain: Transaction confirmation and polling
+    - retry: Error handling and retry behavior
+    - worker: Worker execution and concurrency
+    - certificate: Certificate storage and signing
+
+    Environment variables can use either:
+    - Grouped: BLOCKCHAIN_REQUIRED_CONFIRMATIONS=6
+    - Direct: LOG_LEVEL=INFO
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # Grouped settings
+    blockchain: BlockchainSettings = Field(default_factory=BlockchainSettings)
+    retry: RetrySettings = Field(default_factory=RetrySettings)
+    worker: WorkerSettings = Field(default_factory=WorkerSettings)
+    certificate: CertificateSettings = Field(default_factory=CertificateSettings)
+
+    # Top-level settings
+    log_level: str = Field(
+        default="INFO",
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+    environment: str = Field(
+        default="development",
+        description="Application environment (development, staging, production)",
+    )
 
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
+        """
+        Validate log level is a standard Python logging level.
+
+        Raises:
+            ValueError: If log level is not recognized
+        """
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in valid_levels:
             raise ValueError(f"log_level must be one of {valid_levels}")
@@ -51,7 +204,13 @@ def get_settings() -> Settings:
     """
     Get cached settings instance (singleton pattern).
 
+    Settings are loaded from environment variables and .env file.
+    The instance is cached to avoid repeated parsing.
+
     Returns:
         Settings: Application settings instance
+
+    Raises:
+        ValidationError: If required settings are missing or invalid
     """
     return Settings()

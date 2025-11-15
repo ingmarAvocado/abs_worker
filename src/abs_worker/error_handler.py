@@ -147,10 +147,10 @@ async def retry_with_backoff(
         Exception: Last exception if all retries exhausted
     """
     settings = get_settings()
-    max_retries = max_retries if max_retries is not None else settings.max_retries
-    delay = initial_delay if initial_delay is not None else settings.retry_delay
+    max_retries = max_retries if max_retries is not None else settings.retry.max_retries
+    delay = initial_delay if initial_delay is not None else settings.retry.retry_delay
     multiplier = (
-        backoff_multiplier if backoff_multiplier is not None else settings.retry_backoff_multiplier
+        backoff_multiplier if backoff_multiplier is not None else settings.retry.backoff_multiplier
     )
 
     for attempt in range(max_retries + 1):

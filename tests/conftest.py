@@ -331,14 +331,27 @@ def cleanup(request):
 # ============================================================================
 
 @pytest.fixture
-def worker_settings():
+def worker_settings(tmp_path):
     """Provide test configuration settings"""
+    from abs_worker.config import BlockchainSettings, RetrySettings, WorkerSettings, CertificateSettings
+
+    # Create temporary certificate storage path for tests
+    cert_storage = tmp_path / "certificates"
+    cert_storage.mkdir(exist_ok=True)
+
+    # Create temporary signing key for tests
+    signing_key = tmp_path / "test_signing_key.pem"
+    signing_key.write_text("0x" + "1" * 64)
+    signing_key.chmod(0o600)
+
     return Settings(
-        required_confirmations=2,
-        max_retries=2,
-        retry_delay=1,
-        worker_timeout=60,
-        max_concurrent_tasks=5,
+        blockchain=BlockchainSettings(required_confirmations=2),
+        retry=RetrySettings(max_retries=2, retry_delay=1),
+        worker=WorkerSettings(timeout=60, max_concurrent_tasks=5),
+        certificate=CertificateSettings(
+            storage_path=str(cert_storage),
+            signing_key_path=str(signing_key)
+        ),
         log_level="DEBUG",
         environment="test",
     )

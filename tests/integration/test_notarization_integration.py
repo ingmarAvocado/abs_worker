@@ -27,7 +27,7 @@ class TestHashNotarizationIntegration:
     """Integration tests for hash notarization workflow using real database."""
 
     @pytest.mark.asyncio
-    async def test_full_hash_notarization_workflow(self, db_context, test_document, mock_blockchain):
+    async def test_full_hash_notarization_workflow(self, db_context, test_document, mock_blockchain, worker_settings):
         """Test complete hash notarization workflow with REAL database and real certificate generation."""
         from abs_worker.notarization import process_hash_notarization
 
@@ -50,7 +50,8 @@ class TestHashNotarizationIntegration:
         with patch('abs_worker.notarization.get_session', mock_get_session), \
              patch('abs_worker.notarization.BlockchainClient') as mock_client_class, \
              patch('abs_worker.notarization.monitor_transaction') as mock_monitor, \
-             patch('abs_worker.error_handler.get_session', mock_get_session):
+             patch('abs_worker.error_handler.get_session', mock_get_session), \
+             patch('abs_worker.certificates.get_settings', lambda: worker_settings):
 
             # Setup blockchain mock
             mock_client = AsyncMock()
@@ -210,7 +211,7 @@ class TestHashNotarizationIntegration:
         assert "Certificate storage unavailable" in updated_doc.error_message
 
     @pytest.mark.asyncio
-    async def test_concurrent_hash_notarizations(self, db_context, test_user):
+    async def test_concurrent_hash_notarizations(self, db_context, test_user, worker_settings):
         """Test multiple hash notarizations running sequentially with REAL database.
 
         Note: True concurrency with same session not possible in SQLAlchemy.
@@ -250,7 +251,8 @@ class TestHashNotarizationIntegration:
         with patch('abs_worker.notarization.get_session', mock_get_session), \
              patch('abs_worker.notarization.BlockchainClient') as mock_client_class, \
              patch('abs_worker.notarization.monitor_transaction') as mock_monitor, \
-             patch('abs_worker.error_handler.get_session', mock_get_session):
+             patch('abs_worker.error_handler.get_session', mock_get_session), \
+             patch('abs_worker.certificates.get_settings', lambda: worker_settings):
 
             mock_client = AsyncMock()
             mock_client.notarize_hash.side_effect = mock_notarize_hash
@@ -279,13 +281,13 @@ class TestNftNotarizationIntegration:
     """Integration tests for NFT notarization workflow using real database."""
 
     @pytest.mark.asyncio
-    async def test_nft_notarization_not_implemented(self, mock_nft_document):
+    async def test_nft_notarization_not_implemented(self, mock_nft_document, worker_settings):
         """Test that NFT notarization raises NotImplementedError."""
         from abs_worker.notarization import process_nft_notarization
 
-        # NFT notarization is not yet implemented
-        # Should not raise exception (stub implementation)
-        await process_nft_notarization(mock_nft_document.id)
+        # NFT notarization is not yet implemented - should raise NotImplementedError
+        with pytest.raises(NotImplementedError, match="NFT notarization not yet implemented"):
+            await process_nft_notarization(mock_nft_document.id)
 
 
 class TestErrorHandlingIntegration:
@@ -337,37 +339,39 @@ class TestErrorHandlingIntegration:
             await handle_failed_transaction(99999, test_error)
 
     @pytest.mark.asyncio
-    async def test_retry_with_backoff_success(self, db_context):
+    async def test_retry_with_backoff_success(self, db_context, worker_settings):
         """Test retry logic with successful eventual call."""
         from abs_worker.error_handler import retry_with_backoff
 
-        call_count = 0
+        with patch('abs_worker.error_handler.get_settings', lambda: worker_settings):
+            call_count = 0
 
-        async def failing_function():
-            nonlocal call_count
-            call_count += 1
-            if call_count < 3:
-                raise Exception("Temporary failure")
-            return "success"
+            async def failing_function():
+                nonlocal call_count
+                call_count += 1
+                if call_count < 3:
+                    raise Exception("Temporary failure")
+                return "success"
 
-        result = await retry_with_backoff(failing_function, max_retries=5)
+            result = await retry_with_backoff(failing_function, max_retries=5)
 
-        assert result == "success"
-        assert call_count == 3
+            assert result == "success"
+            assert call_count == 3
 
     @pytest.mark.asyncio
-    async def test_retry_with_backoff_exhaustion(self, db_context):
+    async def test_retry_with_backoff_exhaustion(self, db_context, worker_settings):
         """Test retry logic that exhausts all attempts."""
         from abs_worker.error_handler import retry_with_backoff
 
-        call_count = 0
+        with patch('abs_worker.error_handler.get_settings', lambda: worker_settings):
+            call_count = 0
 
-        async def always_failing_function():
-            nonlocal call_count
-            call_count += 1
-            raise Exception("Permanent failure")
+            async def always_failing_function():
+                nonlocal call_count
+                call_count += 1
+                raise Exception("Permanent failure")
 
-        with pytest.raises(Exception, match="Permanent failure"):
-            await retry_with_backoff(always_failing_function, max_retries=2)
+            with pytest.raises(Exception, match="Permanent failure"):
+                await retry_with_backoff(always_failing_function, max_retries=2)
 
-        assert call_count == 3  # Initial call + 2 retries
+            assert call_count == 3  # Initial call + 2 retries

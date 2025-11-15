@@ -109,7 +109,7 @@ async def generate_signed_json(doc) -> str:
     cert_data["signature"] = signature
 
     # Save to file
-    cert_dir = Path(settings.cert_storage_path) / str(doc.owner_id)
+    cert_dir = Path(settings.certificate.storage_path) / str(doc.owner_id)
     cert_dir.mkdir(parents=True, exist_ok=True)
 
     # Get first 8 chars of hash, removing 0x prefix if present
@@ -143,7 +143,7 @@ async def generate_signed_pdf(doc) -> str:
     settings = get_settings()
     logger.info(f"Generating PDF certificate for document {doc.id}")
 
-    cert_dir = Path(settings.cert_storage_path) / str(doc.owner_id)
+    cert_dir = Path(settings.certificate.storage_path) / str(doc.owner_id)
     cert_dir.mkdir(parents=True, exist_ok=True)
 
     # Get first 8 chars of hash, removing 0x prefix if present
@@ -393,8 +393,8 @@ async def _read_signing_key(settings) -> Optional[str]:
         Hex-encoded private key or None if not available
     """
     # Check if signing key path is configured
-    if hasattr(settings, "signing_key_path") and settings.signing_key_path:
-        key_path = Path(settings.signing_key_path)
+    if hasattr(settings.certificate, "signing_key_path") and settings.certificate.signing_key_path:
+        key_path = Path(settings.certificate.signing_key_path)
         if key_path.exists():
             # Check file permissions for security
             import stat
