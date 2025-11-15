@@ -17,7 +17,9 @@ from .config import get_settings
 logger = get_logger(__name__)
 
 
-async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
+async def monitor_transaction(
+    client: BlockchainClient, doc_id: Optional[int], tx_hash: str
+) -> Dict[str, Any]:
     """
     Monitor blockchain transaction until confirmed
 
@@ -25,7 +27,8 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
     the required number of confirmations.
 
     Args:
-        doc_id: Document ID being processed (for logging)
+        client: Blockchain client instance to use
+        doc_id: Document ID being processed (for logging), can be None for generic monitoring
         tx_hash: Transaction hash to monitor
 
     Returns:
@@ -37,11 +40,12 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
     """
     settings = get_settings()
     logger.info(
-        f"Monitoring transaction {tx_hash} for document {doc_id}",
-        extra={"doc_id": doc_id, "tx_hash": tx_hash},
+        f"Monitoring transaction {tx_hash}"
+        + (f" for document {doc_id}" if doc_id is not None else ""),
+        extra={"doc_id": doc_id, "tx_hash": tx_hash}
+        if doc_id is not None
+        else {"tx_hash": tx_hash},
     )
-
-    client = BlockchainClient()
     attempts = 0
     start_time = asyncio.get_event_loop().time()
 
@@ -68,7 +72,7 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
                 )
                 raise ValueError(f"Transaction {tx_hash} reverted")
 
-            # Check confirmations
+            # Check confirmations - only fetch latest block when we have a receipt
             tx_block = receipt.get("blockNumber")
             current_block = await client.get_latest_block_number()
             confirmations = current_block - tx_block
@@ -92,18 +96,17 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
         except ValueError:
             # Re-raise ValueError (reverted transaction)
             raise
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
+            # These are recoverable network/transient errors
             logger.warning(
-                f"Error checking transaction {tx_hash}: {e}",
+                f"Recoverable error checking transaction {tx_hash}: {e}",
                 extra={"tx_hash": tx_hash, "error": str(e), "attempt": attempts},
             )
 
         # Check timeout
         elapsed = asyncio.get_event_loop().time() - start_time
         if elapsed > settings.blockchain.max_confirmation_wait:
-            raise TimeoutError(
-                f"Transaction {tx_hash} confirmation timeout after {elapsed:.0f}s"
-            )
+            raise TimeoutError(f"Transaction {tx_hash} confirmation timeout after {elapsed:.0f}s")
 
         await asyncio.sleep(settings.blockchain.poll_interval)
         attempts += 1
@@ -111,11 +114,12 @@ async def monitor_transaction(doc_id: int, tx_hash: str) -> Dict[str, Any]:
     raise TimeoutError(f"Transaction {tx_hash} exceeded max poll attempts")
 
 
-async def check_transaction_status(tx_hash: str) -> Dict[str, Any]:
+async def check_transaction_status(client: BlockchainClient, tx_hash: str) -> Dict[str, Any]:
     """
     Check current status of a blockchain transaction
 
     Args:
+        client: Blockchain client instance to use
         tx_hash: Transaction hash to check
 
     Returns:
@@ -126,7 +130,6 @@ async def check_transaction_status(tx_hash: str) -> Dict[str, Any]:
             "receipt": dict | None
         }
     """
-    client = BlockchainClient()
 
     try:
         receipt = await client.get_transaction_receipt(tx_hash)
@@ -156,12 +159,13 @@ async def check_transaction_status(tx_hash: str) -> Dict[str, Any]:
 
 
 async def wait_for_confirmation(
-    tx_hash: str, required_confirmations: Optional[int] = None
+    client: BlockchainClient, tx_hash: str, required_confirmations: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Wait for transaction to receive required confirmations
 
     Args:
+        client: Blockchain client instance to use
         tx_hash: Transaction hash to wait for
         required_confirmations: Number of confirmations required (uses config default if None)
 
@@ -180,5 +184,5 @@ async def wait_for_confirmation(
         extra={"tx_hash": tx_hash, "required_confirmations": confirmations_needed},
     )
 
-    # Use monitor_transaction with doc_id=0 for generic monitoring
-    return await monitor_transaction(0, tx_hash)
+    # Use monitor_transaction with doc_id=None for generic monitoring
+    return await monitor_transaction(client, None, tx_hash)

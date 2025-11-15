@@ -27,7 +27,9 @@ class TestHashNotarizationIntegration:
     """Integration tests for hash notarization workflow using real database."""
 
     @pytest.mark.asyncio
-    async def test_full_hash_notarization_workflow(self, db_context, test_document, mock_blockchain, worker_settings):
+    async def test_full_hash_notarization_workflow(
+        self, db_context, test_document, mock_blockchain, worker_settings
+    ):
         """Test complete hash notarization workflow with REAL database and real certificate generation."""
         from abs_worker.notarization import process_hash_notarization
 
@@ -39,7 +41,7 @@ class TestHashNotarizationIntegration:
         assert doc.signed_pdf_path is None
 
         # Mock blockchain to return successful result
-        mock_result = type('NotarizationResult', (), {'transaction_hash': '0xreal_tx_hash_123'})()
+        mock_result = type("NotarizationResult", (), {"transaction_hash": "0xreal_tx_hash_123"})()
 
         # Mock get_session to use TEST database, and mock blockchain/monitoring
         @asynccontextmanager
@@ -47,38 +49,49 @@ class TestHashNotarizationIntegration:
             """Return test database session instead of creating new one"""
             yield db_context.session
 
-        with patch('abs_worker.notarization.get_session', mock_get_session), \
-             patch('abs_worker.notarization.BlockchainClient') as mock_client_class, \
-             patch('abs_worker.notarization.monitor_transaction') as mock_monitor, \
-             patch('abs_worker.error_handler.get_session', mock_get_session), \
-             patch('abs_worker.certificates.get_settings', lambda: worker_settings):
-
+        with patch("abs_worker.notarization.get_session", mock_get_session), patch(
+            "abs_worker.notarization.BlockchainClient"
+        ) as mock_client_class, patch(
+            "abs_worker.notarization.monitor_transaction"
+        ) as mock_monitor, patch(
+            "abs_worker.monitoring.get_settings", lambda: worker_settings
+        ), patch("abs_worker.error_handler.get_session", mock_get_session), patch(
+            "abs_worker.certificates.get_settings", lambda: worker_settings
+        ):
             # Setup blockchain mock
             mock_client = AsyncMock()
             mock_client.notarize_hash.return_value = mock_result
+            mock_client.get_transaction_receipt.return_value = {
+                "status": 1,
+                "blockNumber": 100,
+                "transactionHash": "0xreal_tx_hash_123",
+            }
+            mock_client.get_latest_block_number.return_value = 105  # 5 confirmations
             mock_client_class.return_value = mock_client
 
             # Monitoring just succeeds
             mock_monitor.return_value = None
 
             # Execute the workflow - USES REAL TEST DATABASE, REAL CERTIFICATE FUNCTIONS
-            await process_hash_notarization(test_document.id)
+            await process_hash_notarization(mock_client, test_document.id)
 
             # Verify blockchain was called correctly
             mock_client.notarize_hash.assert_called_once()
             call_args = mock_client.notarize_hash.call_args
-            assert call_args[1]['file_hash'] == test_document.file_hash
-            assert 'file_name' in call_args[1]['metadata']
-            assert 'timestamp' in call_args[1]['metadata']
+            assert call_args[1]["file_hash"] == test_document.file_hash
+            assert "file_name" in call_args[1]["metadata"]
+            assert "timestamp" in call_args[1]["metadata"]
 
             # Verify monitoring was called
-            mock_monitor.assert_called_once_with(test_document.id, '0xreal_tx_hash_123')
+            mock_monitor.assert_called_once_with(
+                mock_client, test_document.id, "0xreal_tx_hash_123"
+            )
 
         # Verify final document state IN REAL DATABASE
         await db_context.session.refresh(test_document)
         updated_doc = await db_context.documents.get(test_document.id)
         assert updated_doc.status == DocStatus.ON_CHAIN
-        assert updated_doc.transaction_hash == '0xreal_tx_hash_123'
+        assert updated_doc.transaction_hash == "0xreal_tx_hash_123"
         assert updated_doc.signed_json_path is not None
         assert updated_doc.signed_pdf_path is not None
         # Note: Certificate functions are stubs, so we don't verify file existence yet
@@ -98,17 +111,16 @@ class TestHashNotarizationIntegration:
             yield db_context.session
 
         # Mock blockchain to fail with realistic error
-        with patch('abs_worker.notarization.get_session', mock_get_session), \
-             patch('abs_worker.notarization.BlockchainClient') as mock_client_class, \
-             patch('abs_worker.error_handler.get_session', mock_get_session):
-
+        with patch("abs_worker.notarization.get_session", mock_get_session), patch(
+            "abs_worker.notarization.BlockchainClient"
+        ) as mock_client_class, patch("abs_worker.error_handler.get_session", mock_get_session):
             mock_client = AsyncMock()
             mock_client.notarize_hash.side_effect = Exception("Blockchain connection failed")
             mock_client_class.return_value = mock_client
 
             # Execute and expect failure
             with pytest.raises(Exception) as exc_info:
-                await process_hash_notarization(test_document.id)
+                await process_hash_notarization(mock_client, test_document.id)
 
             assert "Blockchain connection failed" in str(exc_info.value)
 
@@ -131,17 +143,21 @@ class TestHashNotarizationIntegration:
 
         # Try to process non-existent document - REAL DATABASE WILL RETURN None
         # Need to patch both notarization.get_session AND error_handler.get_session
-        with patch('abs_worker.notarization.get_session', mock_get_session), \
-             patch('abs_worker.error_handler.get_session', mock_get_session):
+        mock_client = AsyncMock()
+        with patch("abs_worker.notarization.get_session", mock_get_session), patch(
+            "abs_worker.error_handler.get_session", mock_get_session
+        ):
             with pytest.raises(ValueError, match="Document 99999 not found"):
-                await process_hash_notarization(99999)
+                await process_hash_notarization(mock_client, 99999)
 
     @pytest.mark.asyncio
-    async def test_hash_notarization_transaction_monitoring_failure(self, db_context, test_document):
+    async def test_hash_notarization_transaction_monitoring_failure(
+        self, db_context, test_document
+    ):
         """Test hash notarization with transaction monitoring failure using REAL database."""
         from abs_worker.notarization import process_hash_notarization
 
-        mock_result = type('NotarizationResult', (), {'transaction_hash': '0xfailed_tx_hash'})()
+        mock_result = type("NotarizationResult", (), {"transaction_hash": "0xfailed_tx_hash"})()
 
         # Mock get_session to use TEST database
         @asynccontextmanager
@@ -149,11 +165,11 @@ class TestHashNotarizationIntegration:
             yield db_context.session
 
         # Mock blockchain and monitoring to simulate timeout
-        with patch('abs_worker.notarization.get_session', mock_get_session), \
-             patch('abs_worker.notarization.BlockchainClient') as mock_client_class, \
-             patch('abs_worker.notarization.monitor_transaction') as mock_monitor, \
-             patch('abs_worker.error_handler.get_session', mock_get_session):
-
+        with patch("abs_worker.notarization.get_session", mock_get_session), patch(
+            "abs_worker.notarization.BlockchainClient"
+        ) as mock_client_class, patch(
+            "abs_worker.notarization.monitor_transaction"
+        ) as mock_monitor, patch("abs_worker.error_handler.get_session", mock_get_session):
             mock_client = AsyncMock()
             mock_client.notarize_hash.return_value = mock_result
             mock_client_class.return_value = mock_client
@@ -163,7 +179,7 @@ class TestHashNotarizationIntegration:
 
             # Execute and expect failure
             with pytest.raises(TimeoutError, match="Transaction confirmation timeout"):
-                await process_hash_notarization(test_document.id)
+                await process_hash_notarization(mock_client, test_document.id)
 
         # Verify error was recorded IN REAL DATABASE
         await db_context.session.refresh(test_document)
@@ -172,11 +188,13 @@ class TestHashNotarizationIntegration:
         assert "timeout" in updated_doc.error_message.lower()
 
     @pytest.mark.asyncio
-    async def test_hash_notarization_certificate_generation_failure(self, db_context, test_document):
+    async def test_hash_notarization_certificate_generation_failure(
+        self, db_context, test_document
+    ):
         """Test hash notarization with certificate generation failure using REAL database."""
         from abs_worker.notarization import process_hash_notarization
 
-        mock_result = type('NotarizationResult', (), {'transaction_hash': '0xcert_fail_tx_hash'})()
+        mock_result = type("NotarizationResult", (), {"transaction_hash": "0xcert_fail_tx_hash"})()
 
         # Mock get_session to use TEST database
         @asynccontextmanager
@@ -184,12 +202,13 @@ class TestHashNotarizationIntegration:
             yield db_context.session
 
         # Mock blockchain, monitoring, and make certificate generation fail
-        with patch('abs_worker.notarization.get_session', mock_get_session), \
-             patch('abs_worker.notarization.BlockchainClient') as mock_client_class, \
-             patch('abs_worker.notarization.monitor_transaction') as mock_monitor, \
-             patch('abs_worker.notarization.generate_signed_json') as mock_json_cert, \
-             patch('abs_worker.error_handler.get_session', mock_get_session):
-
+        with patch("abs_worker.notarization.get_session", mock_get_session), patch(
+            "abs_worker.notarization.BlockchainClient"
+        ) as mock_client_class, patch(
+            "abs_worker.notarization.monitor_transaction"
+        ) as mock_monitor, patch(
+            "abs_worker.notarization.generate_signed_json"
+        ) as mock_json_cert, patch("abs_worker.error_handler.get_session", mock_get_session):
             mock_client = AsyncMock()
             mock_client.notarize_hash.return_value = mock_result
             mock_client_class.return_value = mock_client
@@ -200,7 +219,7 @@ class TestHashNotarizationIntegration:
 
             # Execute and expect failure
             with pytest.raises(Exception) as exc_info:
-                await process_hash_notarization(test_document.id)
+                await process_hash_notarization(mock_client, test_document.id)
 
             assert "Certificate storage unavailable" in str(exc_info.value)
 
@@ -230,7 +249,7 @@ class TestHashNotarizationIntegration:
                 file_hash=f"0xhash_{i}_{hash(f'concurrent_{i}') % 10000:04x}",
                 file_path=f"/tmp/concurrent_{i}.pdf",
                 status=DocStatus.PENDING,
-                type=DocType.HASH
+                type=DocType.HASH,
             )
             docs.append(doc)
         await db_context.commit()
@@ -242,18 +261,22 @@ class TestHashNotarizationIntegration:
 
         # Mock blockchain for operations
         call_count = 0
+
         def mock_notarize_hash(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            result = type('NotarizationResult', (), {'transaction_hash': f'0xconcurrent_tx_{call_count}'})()
+            result = type(
+                "NotarizationResult", (), {"transaction_hash": f"0xconcurrent_tx_{call_count}"}
+            )()
             return result
 
-        with patch('abs_worker.notarization.get_session', mock_get_session), \
-             patch('abs_worker.notarization.BlockchainClient') as mock_client_class, \
-             patch('abs_worker.notarization.monitor_transaction') as mock_monitor, \
-             patch('abs_worker.error_handler.get_session', mock_get_session), \
-             patch('abs_worker.certificates.get_settings', lambda: worker_settings):
-
+        with patch("abs_worker.notarization.get_session", mock_get_session), patch(
+            "abs_worker.notarization.BlockchainClient"
+        ) as mock_client_class, patch(
+            "abs_worker.notarization.monitor_transaction"
+        ) as mock_monitor, patch("abs_worker.error_handler.get_session", mock_get_session), patch(
+            "abs_worker.certificates.get_settings", lambda: worker_settings
+        ):
             mock_client = AsyncMock()
             mock_client.notarize_hash.side_effect = mock_notarize_hash
             mock_client_class.return_value = mock_client
@@ -262,7 +285,7 @@ class TestHashNotarizationIntegration:
             # Execute all notarizations sequentially (SQLAlchemy session limitation)
             # In production, each would get its own session from pool
             for doc in docs:
-                await process_hash_notarization(doc.id)
+                await process_hash_notarization(mock_client, doc.id)
 
             # Verify all blockchain calls were made
             assert mock_client.notarize_hash.call_count == 3
@@ -272,7 +295,7 @@ class TestHashNotarizationIntegration:
             await db_context.session.refresh(doc)
             updated_doc = await db_context.documents.get(doc.id)
             assert updated_doc.status == DocStatus.ON_CHAIN
-            assert updated_doc.transaction_hash.startswith('0xconcurrent_tx_')
+            assert updated_doc.transaction_hash.startswith("0xconcurrent_tx_")
             assert updated_doc.signed_json_path is not None
             assert updated_doc.signed_pdf_path is not None
 
@@ -311,7 +334,7 @@ class TestErrorHandlingIntegration:
             yield db_context.session
 
         # Call error handler - will update REAL DATABASE
-        with patch('abs_worker.error_handler.get_session', mock_get_session):
+        with patch("abs_worker.error_handler.get_session", mock_get_session):
             await handle_failed_transaction(test_document.id, test_error)
 
         # Verify document was updated IN REAL DATABASE
@@ -335,7 +358,7 @@ class TestErrorHandlingIntegration:
 
         # Should not raise exception for non-existent document
         # REAL DATABASE will return None, error handler should handle gracefully
-        with patch('abs_worker.error_handler.get_session', mock_get_session):
+        with patch("abs_worker.error_handler.get_session", mock_get_session):
             await handle_failed_transaction(99999, test_error)
 
     @pytest.mark.asyncio
@@ -343,7 +366,7 @@ class TestErrorHandlingIntegration:
         """Test retry logic with successful eventual call."""
         from abs_worker.error_handler import retry_with_backoff
 
-        with patch('abs_worker.error_handler.get_settings', lambda: worker_settings):
+        with patch("abs_worker.error_handler.get_settings", lambda: worker_settings):
             call_count = 0
 
             async def failing_function():
@@ -363,7 +386,7 @@ class TestErrorHandlingIntegration:
         """Test retry logic that exhausts all attempts."""
         from abs_worker.error_handler import retry_with_backoff
 
-        with patch('abs_worker.error_handler.get_settings', lambda: worker_settings):
+        with patch("abs_worker.error_handler.get_settings", lambda: worker_settings):
             call_count = 0
 
             async def always_failing_function():

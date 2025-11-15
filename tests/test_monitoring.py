@@ -339,7 +339,7 @@ class TestWaitForConfirmation:
         monkeypatch.setattr("abs_worker.monitoring.get_settings", lambda: settings)
 
         # Should use custom confirmation count (parameter overrides config)
-        receipt = await wait_for_confirmation(tx_hash, required_confirmations=2)
+        receipt = await wait_for_confirmation(MockClient(), tx_hash, required_confirmations=2)
 
         assert receipt is not None
         assert receipt["status"] == 1
@@ -376,7 +376,7 @@ class TestWaitForConfirmation:
         monkeypatch.setattr("abs_worker.monitoring.get_settings", lambda: settings)
 
         # Should use config default (no parameter passed)
-        receipt = await wait_for_confirmation(tx_hash)
+        receipt = await wait_for_confirmation(MockClient(), tx_hash)
 
         assert receipt is not None
         assert receipt["status"] == 1

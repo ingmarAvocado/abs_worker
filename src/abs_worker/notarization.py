@@ -17,9 +17,13 @@ from .error_handler import handle_failed_transaction
 logger = get_logger(__name__)
 
 
-async def process_hash_notarization(doc_id: int) -> None:
+async def process_hash_notarization(client: BlockchainClient, doc_id: int) -> None:
     """
     Process document for hash-only blockchain notarization
+
+    Args:
+        client: Blockchain client instance to use
+        doc_id: Document ID to process
 
     Flow:
         1. Fetch Document from database
@@ -58,7 +62,6 @@ async def process_hash_notarization(doc_id: int) -> None:
             logger.info(f"Document {doc_id} status updated to PROCESSING", extra={"doc_id": doc_id})
 
             # Record hash on blockchain
-            client = BlockchainClient()
             result = await client.notarize_hash(
                 file_hash=doc.file_hash,
                 metadata={"file_name": doc.file_name, "timestamp": doc.created_at.isoformat()},
@@ -70,7 +73,7 @@ async def process_hash_notarization(doc_id: int) -> None:
             )
 
             # Monitor transaction
-            await monitor_transaction(doc_id, tx_hash)
+            await monitor_transaction(client, doc_id, tx_hash)
             logger.info(
                 f"Transaction confirmed for document {doc_id}",
                 extra={"doc_id": doc_id, "tx_hash": tx_hash},
