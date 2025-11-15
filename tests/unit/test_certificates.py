@@ -554,20 +554,21 @@ class TestSignCertificate:
         assert len(signature) == 130  # ECDSA signature length
 
     @pytest.mark.asyncio
-    async def test_sign_certificate_handles_missing_key_gracefully(self, mock_settings, monkeypatch):
-        """Test that missing signing key is handled gracefully"""
+    async def test_sign_certificate_raises_exception_when_key_missing(self, mock_settings, monkeypatch):
+        """Test that missing signing key raises SigningKeyNotFoundError"""
+        from abs_worker.certificates import SigningKeyNotFoundError
+
         mock_settings.signing_key_path = "/non/existent/key.pem"
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
+        monkeypatch.setenv("CERTIFICATE_SIGNING_KEY", "")  # Ensure env var is also empty
 
         data = {"test": "data"}
 
-        # Should fall back to hash-based signature if key not found
-        signature = await _sign_certificate(data)
+        # Should raise SigningKeyNotFoundError when no key is available
+        with pytest.raises(SigningKeyNotFoundError) as exc_info:
+            await _sign_certificate(data)
 
-        assert signature is not None
-        assert signature.startswith("0x")
-        # Should be SHA256 hash (64 hex chars) + 0x
-        assert len(signature) == 66
+        assert "signing key not available" in str(exc_info.value).lower()
 
 
 class TestErrorHandling:
@@ -626,3 +627,48 @@ class TestErrorHandling:
         cert_path = await generate_signed_pdf(mock_document)
 
         assert Path(cert_path).exists()
+
+    @pytest.mark.asyncio
+    async def test_file_permission_check_rejects_insecure_permissions(self, tmp_path, mock_settings, monkeypatch):
+        """Test that signing key file with insecure permissions is rejected"""
+        from abs_worker.certificates import _read_signing_key
+        import stat
+
+        # Create a test key file with insecure permissions (world-readable)
+        key_file = tmp_path / "insecure_key.pem"
+        key_file.write_text("0x" + "1" * 64)
+
+        # Make file world-readable (insecure)
+        key_file.chmod(0o644)  # rw-r--r--
+
+        mock_settings.signing_key_path = str(key_file)
+        monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
+        monkeypatch.setenv("CERTIFICATE_SIGNING_KEY", "")  # Ensure env var is empty
+
+        # Should raise PermissionError for insecure file permissions
+        with pytest.raises(PermissionError) as exc_info:
+            await _read_signing_key(mock_settings)
+
+        assert "insecure" in str(exc_info.value).lower()
+        assert "permission" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_file_permission_check_accepts_secure_permissions(self, tmp_path, mock_settings, monkeypatch):
+        """Test that signing key file with secure permissions (600) is accepted"""
+        from abs_worker.certificates import _read_signing_key
+
+        # Create a test key file with secure permissions
+        key_file = tmp_path / "secure_key.pem"
+        test_key = "0x" + "2" * 64
+        key_file.write_text(test_key)
+
+        # Make file owner-only readable (secure)
+        key_file.chmod(0o600)  # rw-------
+
+        mock_settings.signing_key_path = str(key_file)
+        monkeypatch.setenv("CERTIFICATE_SIGNING_KEY", "")  # Ensure env var is empty
+
+        # Should successfully read the key
+        result = await _read_signing_key(mock_settings)
+
+        assert result == test_key

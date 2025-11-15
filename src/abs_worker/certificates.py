@@ -38,6 +38,17 @@ from abs_worker.config import get_settings
 logger = get_logger(__name__)
 
 
+# Custom exceptions
+class SigningKeyNotFoundError(Exception):
+    """
+    Raised when certificate signing key is not available or cannot be loaded.
+
+    This error indicates that the certificate generation process cannot proceed
+    because the required cryptographic signing key is missing or inaccessible.
+    """
+    pass
+
+
 async def generate_signed_json(doc) -> str:
     """
     Generate signed JSON certificate for notarized document
@@ -74,20 +85,24 @@ async def generate_signed_json(doc) -> str:
         "file_name": doc.file_name,
         "file_hash": doc.file_hash,
         "transaction_hash": doc.transaction_hash,
-        "block_number": getattr(doc, 'block_number', None),
-        "timestamp": doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at),
-        "type": doc.type.value if hasattr(doc.type, 'value') else str(doc.type),
+        "block_number": getattr(doc, "block_number", None),
+        "timestamp": doc.created_at.isoformat()
+        if hasattr(doc.created_at, "isoformat")
+        else str(doc.created_at),
+        "type": doc.type.value if hasattr(doc.type, "value") else str(doc.type),
         "blockchain": "polygon",
-        "certificate_version": "1.0"
+        "certificate_version": "1.0",
     }
 
     # Add NFT-specific fields
-    if hasattr(doc, 'nft_token_id') and doc.nft_token_id is not None:
-        cert_data.update({
-            "arweave_file_url": doc.arweave_file_url,
-            "arweave_metadata_url": doc.arweave_metadata_url,
-            "nft_token_id": doc.nft_token_id
-        })
+    if hasattr(doc, "nft_token_id") and doc.nft_token_id is not None:
+        cert_data.update(
+            {
+                "arweave_file_url": doc.arweave_file_url,
+                "arweave_metadata_url": doc.arweave_metadata_url,
+                "nft_token_id": doc.nft_token_id,
+            }
+        )
 
     # Sign certificate
     signature = await _sign_certificate(cert_data)
@@ -98,10 +113,10 @@ async def generate_signed_json(doc) -> str:
     cert_dir.mkdir(parents=True, exist_ok=True)
 
     # Get first 8 chars of hash, removing 0x prefix if present
-    hash_prefix = doc.file_hash[2:10] if doc.file_hash.startswith('0x') else doc.file_hash[:8]
+    hash_prefix = doc.file_hash[2:10] if doc.file_hash.startswith("0x") else doc.file_hash[:8]
     cert_path = cert_dir / f"cert_{doc.id}_{hash_prefix}.json"
 
-    with open(cert_path, 'w') as f:
+    with open(cert_path, "w") as f:
         json.dump(cert_data, f, indent=2)
 
     logger.info(f"JSON certificate saved to {cert_path}")
@@ -132,7 +147,7 @@ async def generate_signed_pdf(doc) -> str:
     cert_dir.mkdir(parents=True, exist_ok=True)
 
     # Get first 8 chars of hash, removing 0x prefix if present
-    hash_prefix = doc.file_hash[2:10] if doc.file_hash.startswith('0x') else doc.file_hash[:8]
+    hash_prefix = doc.file_hash[2:10] if doc.file_hash.startswith("0x") else doc.file_hash[:8]
     cert_path = cert_dir / f"cert_{doc.id}_{hash_prefix}.pdf"
 
     # Create PDF
@@ -153,7 +168,9 @@ async def generate_signed_pdf(doc) -> str:
     # Certificate ID and timestamp
     c.setFont("Helvetica", 10)
     c.setFillColorRGB(0.5, 0.5, 0.5)
-    timestamp_str = doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at)
+    timestamp_str = (
+        doc.created_at.isoformat() if hasattr(doc.created_at, "isoformat") else str(doc.created_at)
+    )
     c.drawString(50, height - 90, f"Certificate ID: CERT-{doc.id:06d}")
     c.drawRightString(width - 50, height - 90, f"Issued: {timestamp_str}")
 
@@ -171,7 +188,11 @@ async def generate_signed_pdf(doc) -> str:
     y_pos -= 20
     c.drawString(70, y_pos, f"File Hash: {doc.file_hash[:32]}...")
     y_pos -= 20
-    c.drawString(70, y_pos, f"Document Type: {doc.type.value if hasattr(doc.type, 'value') else str(doc.type).upper()}")
+    c.drawString(
+        70,
+        y_pos,
+        f"Document Type: {doc.type.value if hasattr(doc.type, 'value') else str(doc.type).upper()}",
+    )
 
     # Blockchain Proof Section
     y_pos -= 40
@@ -185,12 +206,16 @@ async def generate_signed_pdf(doc) -> str:
 
     c.drawString(70, y_pos, f"Blockchain: Polygon")
     y_pos -= 20
-    c.drawString(70, y_pos, f"Transaction Hash: {doc.transaction_hash[:32] if doc.transaction_hash else 'Pending'}...")
+    c.drawString(
+        70,
+        y_pos,
+        f"Transaction Hash: {doc.transaction_hash[:32] if doc.transaction_hash else 'Pending'}...",
+    )
     y_pos -= 20
     c.drawString(70, y_pos, f"Block Number: {getattr(doc, 'block_number', 'Pending')}")
 
     # NFT-specific information
-    if hasattr(doc, 'nft_token_id') and doc.nft_token_id is not None:
+    if hasattr(doc, "nft_token_id") and doc.nft_token_id is not None:
         y_pos -= 40
         c.setFont("Helvetica-Bold", 14)
         c.setFillColorRGB(0.2, 0.2, 0.2)
@@ -205,12 +230,20 @@ async def generate_signed_pdf(doc) -> str:
 
         # Truncate URLs for display
         if doc.arweave_file_url:
-            file_url_display = doc.arweave_file_url[:50] + "..." if len(doc.arweave_file_url) > 50 else doc.arweave_file_url
+            file_url_display = (
+                doc.arweave_file_url[:50] + "..."
+                if len(doc.arweave_file_url) > 50
+                else doc.arweave_file_url
+            )
             c.drawString(70, y_pos, f"File URL: {file_url_display}")
             y_pos -= 20
 
         if doc.arweave_metadata_url:
-            meta_url_display = doc.arweave_metadata_url[:50] + "..." if len(doc.arweave_metadata_url) > 50 else doc.arweave_metadata_url
+            meta_url_display = (
+                doc.arweave_metadata_url[:50] + "..."
+                if len(doc.arweave_metadata_url) > 50
+                else doc.arweave_metadata_url
+            )
             c.drawString(70, y_pos, f"Metadata URL: {meta_url_display}")
             y_pos -= 20
 
@@ -232,6 +265,7 @@ async def generate_signed_pdf(doc) -> str:
 
         # Add QR code to PDF
         from reportlab.lib.utils import ImageReader
+
         qr_image = ImageReader(BytesIO(qr_bytes))
         c.drawImage(qr_image, 70, y_pos - 170, width=150, height=150)
     else:
@@ -249,7 +283,7 @@ async def generate_signed_pdf(doc) -> str:
         "file_hash": doc.file_hash,
         "transaction_hash": doc.transaction_hash,
         "certificate_type": "PDF",
-        "issued_at": timestamp_str
+        "issued_at": timestamp_str,
     }
     signature = await _sign_certificate(pdf_data)
 
@@ -258,7 +292,7 @@ async def generate_signed_pdf(doc) -> str:
     y_pos -= 25
 
     # Break signature into chunks for display
-    sig_chunks = [signature[i:i+64] for i in range(0, len(signature), 64)]
+    sig_chunks = [signature[i : i + 64] for i in range(0, len(signature), 64)]
     for chunk in sig_chunks[:3]:  # Show first 3 lines of signature
         c.drawString(70, y_pos, chunk)
         y_pos -= 15
@@ -270,14 +304,18 @@ async def generate_signed_pdf(doc) -> str:
 
     c.setFont("Helvetica", 8)
     c.setFillColorRGB(0.5, 0.5, 0.5)
-    c.drawCentredString(width / 2, 35, "This certificate verifies the existence and integrity of the document on the blockchain")
+    c.drawCentredString(
+        width / 2,
+        35,
+        "This certificate verifies the existence and integrity of the document on the blockchain",
+    )
 
     # Save PDF
     c.save()
 
     # Write to file
     pdf_buffer.seek(0)
-    with open(cert_path, 'wb') as f:
+    with open(cert_path, "wb") as f:
         f.write(pdf_buffer.read())
 
     logger.info(f"PDF certificate saved to {cert_path}")
@@ -296,7 +334,7 @@ async def _generate_qr_code(url: str) -> bytes:
     """
     qr = qrcode.QRCode(
         version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        error_correction=qrcode.ERROR_CORRECT_L,
         box_size=10,
         border=4,
     )
@@ -307,7 +345,7 @@ async def _generate_qr_code(url: str) -> bytes:
 
     # Convert to bytes
     img_buffer = BytesIO()
-    img.save(img_buffer, format='PNG')
+    img.save(img_buffer, format="PNG")
     img_buffer.seek(0)
 
     return img_buffer.read()
@@ -322,22 +360,26 @@ async def _sign_certificate(data: dict) -> str:
 
     Returns:
         Hex-encoded signature string
+
+    Raises:
+        SigningKeyNotFoundError: If signing key is not available or cannot be loaded
+        PermissionError: If signing key file has insecure permissions
     """
     settings = get_settings()
 
-    try:
-        # Try to load signing key from settings
-        signing_key_hex = await _read_signing_key(settings)
+    # Try to load signing key from settings
+    signing_key_hex = await _read_signing_key(settings)
 
-        if signing_key_hex:
-            # Use ECDSA signing
-            return await _create_certificate_signature(data, signing_key_hex)
-    except Exception as e:
-        logger.warning(f"Could not load signing key, falling back to hash signature: {e}")
+    if signing_key_hex:
+        # Use ECDSA signing
+        return await _create_certificate_signature(data, signing_key_hex)
 
-    # Fallback to deterministic hash if no signing key available
-    data_str = json.dumps(data, sort_keys=True)
-    return "0x" + hashlib.sha256(data_str.encode()).hexdigest()
+    # No signing key available - cannot proceed
+    logger.error("Certificate signing key not available")
+    raise SigningKeyNotFoundError(
+        "Certificate signing key not available. "
+        "Configure CERTIFICATE_SIGNING_KEY environment variable or signing_key_path in settings."
+    )
 
 
 async def _read_signing_key(settings) -> Optional[str]:
@@ -351,23 +393,34 @@ async def _read_signing_key(settings) -> Optional[str]:
         Hex-encoded private key or None if not available
     """
     # Check if signing key path is configured
-    if hasattr(settings, 'signing_key_path') and settings.signing_key_path:
+    if hasattr(settings, "signing_key_path") and settings.signing_key_path:
         key_path = Path(settings.signing_key_path)
         if key_path.exists():
-            with open(key_path, 'r') as f:
+            # Check file permissions for security
+            import stat
+            file_stat = key_path.stat()
+            file_mode = file_stat.st_mode
+
+            # Check if file is readable by group or others (insecure)
+            if file_mode & (stat.S_IRGRP | stat.S_IROTH):
+                logger.critical(
+                    f"Signing key file {key_path} has insecure permissions. "
+                    f"File should be readable only by owner (chmod 600)."
+                )
+                raise PermissionError(
+                    f"Insecure file permissions on signing key: {key_path}. "
+                    f"Expected 600 or 400, got {oct(file_mode)[-3:]}"
+                )
+
+            with open(key_path, "r") as f:
                 return f.read().strip()
 
     # Check environment variable
     import os
-    key_from_env = os.getenv('CERTIFICATE_SIGNING_KEY')
+
+    key_from_env = os.getenv("CERTIFICATE_SIGNING_KEY")
     if key_from_env:
         return key_from_env
-
-    # For testing/development, use a deterministic key based on settings
-    # In production, this should come from secure storage
-    if hasattr(settings, 'environment') and settings.environment == 'test':
-        # Generate deterministic test key
-        return "0x" + "1" * 64  # Test key
 
     return None
 
@@ -384,7 +437,7 @@ async def _create_certificate_signature(data: dict, private_key_hex: str) -> str
         Hex-encoded signature
     """
     # Remove 0x prefix if present
-    if private_key_hex.startswith('0x'):
+    if private_key_hex.startswith("0x"):
         private_key_hex = private_key_hex[2:]
 
     # Convert hex to bytes
@@ -392,9 +445,7 @@ async def _create_certificate_signature(data: dict, private_key_hex: str) -> str
 
     # Create private key object
     private_key = ec.derive_private_key(
-        int.from_bytes(private_key_bytes, 'big'),
-        ec.SECP256K1(),
-        default_backend()
+        int.from_bytes(private_key_bytes, "big"), ec.SECP256K1(), default_backend()
     )
 
     # Serialize data to bytes
@@ -405,16 +456,15 @@ async def _create_certificate_signature(data: dict, private_key_hex: str) -> str
     digest = hashlib.sha256(data_bytes).digest()
 
     # Sign the hash
-    signature = private_key.sign(
-        digest,
-        ec.ECDSA(utils.Prehashed(hashes.SHA256()))
-    )
+    signature = private_key.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
 
     # Convert signature to hex
     return "0x" + signature.hex()
 
 
-async def _verify_certificate_signature(data: dict, signature_hex: str, public_key_hex: str) -> bool:
+async def _verify_certificate_signature(
+    data: dict, signature_hex: str, public_key_hex: str
+) -> bool:
     """
     Verify ECDSA signature for certificate data
 
@@ -428,9 +478,9 @@ async def _verify_certificate_signature(data: dict, signature_hex: str, public_k
     """
     try:
         # Remove 0x prefix if present
-        if signature_hex.startswith('0x'):
+        if signature_hex.startswith("0x"):
             signature_hex = signature_hex[2:]
-        if public_key_hex.startswith('0x'):
+        if public_key_hex.startswith("0x"):
             public_key_hex = public_key_hex[2:]
 
         # Convert hex to bytes
@@ -438,10 +488,7 @@ async def _verify_certificate_signature(data: dict, signature_hex: str, public_k
         public_key_bytes = bytes.fromhex(public_key_hex)
 
         # Create public key object
-        public_key = ec.EllipticCurvePublicKey.from_encoded_point(
-            ec.SECP256K1(),
-            public_key_bytes
-        )
+        public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256K1(), public_key_bytes)
 
         # Serialize data to bytes
         data_bytes = json.dumps(data, sort_keys=True).encode()
@@ -450,11 +497,7 @@ async def _verify_certificate_signature(data: dict, signature_hex: str, public_k
         digest = hashlib.sha256(data_bytes).digest()
 
         # Verify signature
-        public_key.verify(
-            signature_bytes,
-            digest,
-            ec.ECDSA(utils.Prehashed(hashes.SHA256()))
-        )
+        public_key.verify(signature_bytes, digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
 
         return True
 
