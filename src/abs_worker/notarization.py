@@ -51,14 +51,19 @@ async def process_hash_notarization(client: BlockchainClient, doc_id: int) -> No
                 raise ValueError(f"Document {doc_id} not found")
 
             # Validate document is in PENDING status
-            if doc.status != DocStatus.PENDING:
+            if doc.status == DocStatus.PROCESSING:
+                logger.warning(
+                    f"Document {doc_id} is already being processed, skipping",
+                    extra={"doc_id": doc_id},
+                )
+                return  # Exit gracefully for idempotency
+            elif doc.status != DocStatus.PENDING:
                 raise ValueError(
                     f"Document {doc_id} is not in PENDING status (current: {doc.status.value})"
                 )
 
-            # Update status to PROCESSING
+            # Update status to PROCESSING (will be committed with final update)
             await doc_repo.update(doc_id, status=DocStatus.PROCESSING)
-            await session.commit()
             logger.info(f"Document {doc_id} status updated to PROCESSING", extra={"doc_id": doc_id})
 
             # Record hash on blockchain
@@ -106,7 +111,15 @@ async def process_hash_notarization(client: BlockchainClient, doc_id: int) -> No
             f"Hash notarization failed for document {doc_id}: {e}",
             extra={"doc_id": doc_id, "error": str(e)},
         )
-        await handle_failed_transaction(doc_id, e)
+        # Mark document as ERROR in a separate transaction before the original session rolls back
+        async with get_session() as error_session:
+            error_doc_repo = DocumentRepository(error_session)
+            await error_doc_repo.update(doc_id, status=DocStatus.ERROR, error_message=str(e)[:500])
+            await error_session.commit()
+        logger.info(
+            f"Document {doc_id} marked as ERROR due to notarization failure",
+            extra={"doc_id": doc_id},
+        )
         raise
 
 

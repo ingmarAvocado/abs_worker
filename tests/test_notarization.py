@@ -30,8 +30,9 @@ class TestProcessHashNotarization:
 
         # Should attempt to run but fail due to missing database setup
         # This tests that the function signature and basic structure work
+        mock_client = type("MockClient", (), {})()
         with pytest.raises(Exception):  # Will fail due to database connection
-            await process_hash_notarization(doc_id)
+            await process_hash_notarization(mock_client, doc_id)
 
     @pytest.mark.asyncio
     async def test_successful_hash_notarization(self, mock_document, monkeypatch):
@@ -57,9 +58,8 @@ class TestProcessHashNotarization:
 
         monkeypatch.setattr("abs_worker.notarization.get_session", mock_get_session)
         monkeypatch.setattr("abs_worker.notarization.DocumentRepository", lambda s: repo)
-        # Mock BlockchainClient
+        # Create mock client with required methods
         mock_client = type("MockClient", (), {"notarize_hash": blockchain.notarize_hash})()
-        monkeypatch.setattr("abs_worker.notarization.BlockchainClient", lambda: mock_client)
 
         async def mock_monitor_transaction(*args, **kwargs):
             return None
@@ -77,7 +77,7 @@ class TestProcessHashNotarization:
         monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
         # Execute notarization
-        await process_hash_notarization(mock_document.id)
+        await process_hash_notarization(mock_client, mock_document.id)
 
         # Verify document status progression
         updated_doc = repo.documents[mock_document.id]
@@ -118,9 +118,12 @@ class TestProcessHashNotarization:
         )
         monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
+        # Create mock client
+        mock_client = type("MockClient", (), {})()
+
         # Should raise ValueError for non-existent document
         with pytest.raises(ValueError, match="Document 999 not found"):
-            await process_hash_notarization(999)
+            await process_hash_notarization(mock_client, 999)
 
     @pytest.mark.asyncio
     async def test_blockchain_error_handled(self, mock_document, monkeypatch):
@@ -147,9 +150,8 @@ class TestProcessHashNotarization:
 
         monkeypatch.setattr("abs_worker.notarization.get_session", mock_get_session)
         monkeypatch.setattr("abs_worker.notarization.DocumentRepository", lambda s: repo)
-        # Mock BlockchainClient with failing method
+        # Create mock client with failing method
         mock_client = type("MockClient", (), {"notarize_hash": failing_notarize_hash})()
-        monkeypatch.setattr("abs_worker.notarization.BlockchainClient", lambda: mock_client)
 
         # Mock error handler to update document status
         async def mock_handle_failed_transaction(doc_id, error):
@@ -163,7 +165,7 @@ class TestProcessHashNotarization:
 
         # Should handle blockchain error gracefully
         with pytest.raises(Exception, match="Transaction reverted"):
-            await process_hash_notarization(mock_document.id)
+            await process_hash_notarization(mock_client, mock_document.id)
 
         # Document should be marked as ERROR
         updated_doc = repo.documents[mock_document.id]
@@ -207,7 +209,6 @@ class TestProcessHashNotarization:
         monkeypatch.setattr("abs_worker.notarization.DocumentRepository", lambda s: repo)
         # Mock BlockchainClient
         mock_client = type("MockClient", (), {"notarize_hash": blockchain.notarize_hash})()
-        monkeypatch.setattr("abs_worker.notarization.BlockchainClient", lambda: mock_client)
 
         async def mock_monitor_transaction(*args, **kwargs):
             return None
@@ -218,7 +219,7 @@ class TestProcessHashNotarization:
         monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
         # Execute notarization
-        await process_hash_notarization(mock_document.id)
+        await process_hash_notarization(mock_client, mock_document.id)
 
         # Verify certificates were generated
         assert len(json_calls) == 1
@@ -276,6 +277,9 @@ class TestProcessHashNotarization:
         monkeypatch.setattr("abs_worker.notarization.generate_signed_pdf", mock_generate_pdf)
         monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
+        # Create mock client
+        mock_client = type("MockClient", (), {})()
+
         # Mock error handler to avoid database access
         async def mock_handle_failed_transaction(*args, **kwargs):
             pass
@@ -286,7 +290,7 @@ class TestProcessHashNotarization:
 
         # Execute notarization - should raise error for non-PENDING status
         with pytest.raises(ValueError, match="is not in PENDING status"):
-            await process_hash_notarization(mock_document.id)
+            await process_hash_notarization(mock_client, mock_document.id)
 
     @pytest.mark.asyncio
     async def test_hash_notarization_monitoring_failure(self, mock_document, monkeypatch):
@@ -315,9 +319,8 @@ class TestProcessHashNotarization:
 
         monkeypatch.setattr("abs_worker.notarization.get_session", mock_get_session)
         monkeypatch.setattr("abs_worker.notarization.DocumentRepository", lambda s: repo)
-        # Mock BlockchainClient
+        # Create mock client
         mock_client = type("MockClient", (), {"notarize_hash": blockchain.notarize_hash})()
-        monkeypatch.setattr("abs_worker.notarization.BlockchainClient", lambda: mock_client)
         monkeypatch.setattr(
             "abs_worker.notarization.monitor_transaction", failing_monitor_transaction
         )
@@ -334,7 +337,7 @@ class TestProcessHashNotarization:
 
         # Should handle monitoring failure gracefully
         with pytest.raises(Exception, match="Monitoring timeout"):
-            await process_hash_notarization(mock_document.id)
+            await process_hash_notarization(mock_client, mock_document.id)
 
         # Document should be marked as ERROR
         updated_doc = repo.documents[mock_document.id]
@@ -367,9 +370,8 @@ class TestProcessHashNotarization:
 
         monkeypatch.setattr("abs_worker.notarization.get_session", mock_get_session)
         monkeypatch.setattr("abs_worker.notarization.DocumentRepository", lambda s: repo)
-        # Mock BlockchainClient
+        # Create mock client
         mock_client = type("MockClient", (), {"notarize_hash": blockchain.notarize_hash})()
-        monkeypatch.setattr("abs_worker.notarization.BlockchainClient", lambda: mock_client)
 
         async def mock_monitor_transaction(*args, **kwargs):
             return None
@@ -394,7 +396,7 @@ class TestProcessHashNotarization:
 
         # Should handle certificate failure gracefully
         with pytest.raises(Exception, match="JSON generation failed"):
-            await process_hash_notarization(mock_document.id)
+            await process_hash_notarization(mock_client, mock_document.id)
 
         # Document should be marked as ERROR
         updated_doc = repo.documents[mock_document.id]
@@ -740,9 +742,7 @@ class TestProcessNftNotarization:
                 "https://arweave.net/"
             ), "arweave_file_url must be valid Arweave URL"
 
-            assert (
-                updated_doc.arweave_metadata_url is not None
-            ), "arweave_metadata_url must be set"
+            assert updated_doc.arweave_metadata_url is not None, "arweave_metadata_url must be set"
             assert updated_doc.arweave_metadata_url.startswith(
                 "https://arweave.net/"
             ), "arweave_metadata_url must be valid Arweave URL"
