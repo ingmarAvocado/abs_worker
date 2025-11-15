@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     worker_timeout: int = Field(default=300, gt=0)
     max_concurrent_tasks: int = Field(default=10, gt=0)
 
+    # Certificate settings
+    cert_storage_path: str = Field(default="/var/abs_notary/certificates")
+    signing_key_path: str = Field(default="/etc/abs_notary/signing_key.pem")
+
     # Optional settings
     log_level: str = Field(default="INFO")
     environment: str = Field(default="development")
