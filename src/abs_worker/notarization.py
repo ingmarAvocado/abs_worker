@@ -12,7 +12,7 @@ from abs_blockchain import BlockchainClient
 from abs_utils.logger import get_logger
 from .monitoring import monitor_transaction
 from .certificates import generate_signed_json, generate_signed_pdf
-from .error_handler import handle_failed_transaction
+from .error_handler import handle_failed_transaction, retry_with_backoff
 
 logger = get_logger(__name__)
 
@@ -42,32 +42,33 @@ async def process_hash_notarization(client: BlockchainClient, doc_id: int) -> No
     """
     logger.info(f"Starting hash notarization for document {doc_id}", extra={"doc_id": doc_id})
 
-    try:
-        async with get_session() as session:
-            doc_repo = DocumentRepository(session)
-            doc = await doc_repo.get(doc_id)
+    async with get_session() as session:
+        doc_repo = DocumentRepository(session)
+        doc = await doc_repo.get(doc_id)
 
-            if not doc:
-                raise ValueError(f"Document {doc_id} not found")
+        if not doc:
+            raise ValueError(f"Document {doc_id} not found")
 
-            # Validate document is in PENDING status
-            if doc.status == DocStatus.PROCESSING:
-                logger.warning(
-                    f"Document {doc_id} is already being processed, skipping",
-                    extra={"doc_id": doc_id},
-                )
-                return  # Exit gracefully for idempotency
-            elif doc.status != DocStatus.PENDING:
-                raise ValueError(
-                    f"Document {doc_id} is not in PENDING status (current: {doc.status.value})"
-                )
+        # Validate document is in PENDING status
+        if doc.status == DocStatus.PROCESSING:
+            logger.warning(
+                f"Document {doc_id} is already being processed, skipping",
+                extra={"doc_id": doc_id},
+            )
+            return  # Exit gracefully for idempotency
+        elif doc.status != DocStatus.PENDING:
+            raise ValueError(
+                f"Document {doc_id} is not in PENDING status (current: {doc.status.value})"
+            )
 
-            # Update status to PROCESSING (will be committed with final update)
-            await doc_repo.update(doc_id, status=DocStatus.PROCESSING)
-            logger.info(f"Document {doc_id} status updated to PROCESSING", extra={"doc_id": doc_id})
+        # Update status to PROCESSING (will be committed with final update)
+        await doc_repo.update(doc_id, status=DocStatus.PROCESSING)
+        logger.info(f"Document {doc_id} status updated to PROCESSING", extra={"doc_id": doc_id})
 
-            # Record hash on blockchain
-            result = await client.notarize_hash(
+        try:
+            # Record hash on blockchain with retry logic
+            result = await retry_with_backoff(
+                client.notarize_hash,
                 file_hash=doc.file_hash,
                 metadata={"file_name": doc.file_name, "timestamp": doc.created_at.isoformat()},
             )
@@ -77,8 +78,8 @@ async def process_hash_notarization(client: BlockchainClient, doc_id: int) -> No
                 extra={"doc_id": doc_id, "tx_hash": tx_hash},
             )
 
-            # Monitor transaction
-            await monitor_transaction(client, doc_id, tx_hash)
+            # Monitor transaction with retry logic
+            await retry_with_backoff(monitor_transaction, client, doc_id, tx_hash)
             logger.info(
                 f"Transaction confirmed for document {doc_id}",
                 extra={"doc_id": doc_id, "tx_hash": tx_hash},
@@ -106,21 +107,14 @@ async def process_hash_notarization(client: BlockchainClient, doc_id: int) -> No
                 f"Hash notarization completed for document {doc_id}", extra={"doc_id": doc_id}
             )
 
-    except Exception as e:
-        logger.error(
-            f"Hash notarization failed for document {doc_id}: {e}",
-            extra={"doc_id": doc_id, "error": str(e)},
-        )
-        # Mark document as ERROR in a separate transaction before the original session rolls back
-        async with get_session() as error_session:
-            error_doc_repo = DocumentRepository(error_session)
-            await error_doc_repo.update(doc_id, status=DocStatus.ERROR, error_message=str(e)[:500])
-            await error_session.commit()
-        logger.info(
-            f"Document {doc_id} marked as ERROR due to notarization failure",
-            extra={"doc_id": doc_id},
-        )
-        raise
+        except Exception as e:
+            logger.error(
+                f"Hash notarization failed for document {doc_id}: {e}",
+                extra={"doc_id": doc_id, "error": str(e)},
+            )
+            # Mark document as ERROR - this is called after retries are exhausted
+            await handle_failed_transaction(doc_id, e)
+            raise
 
 
 async def process_nft_notarization(doc_id: int) -> None:

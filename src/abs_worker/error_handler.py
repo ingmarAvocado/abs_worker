@@ -70,8 +70,8 @@ def is_retryable_error(error: Exception) -> bool:
         if keyword in error_str:
             return False
 
-    # Default to retryable for unknown errors (be conservative)
-    return True
+    # Default to non-retryable for unknown errors (fail fast on bugs)
+    return False
 
 
 async def handle_failed_transaction(doc_id: int, error: Exception) -> None:
@@ -114,7 +114,9 @@ async def handle_failed_transaction(doc_id: int, error: Exception) -> None:
 
         # Mark as error
         await doc_repo.update(
-            doc_id, status=DocStatus.ERROR, error_message=str(error)[:500]  # Truncate long errors
+            doc_id,
+            status=DocStatus.ERROR,
+            error_message=str(error)[:500],  # Truncate long errors
         )
 
         await session.commit()
@@ -127,6 +129,7 @@ async def retry_with_backoff(
     max_retries: Optional[int] = None,
     initial_delay: Optional[int] = None,
     backoff_multiplier: Optional[float] = None,
+    settings=None,
     **kwargs,
 ) -> Any:
     """
@@ -146,7 +149,8 @@ async def retry_with_backoff(
     Raises:
         Exception: Last exception if all retries exhausted
     """
-    settings = get_settings()
+    if settings is None:
+        settings = get_settings()
     max_retries = max_retries if max_retries is not None else settings.retry.max_retries
     delay = initial_delay if initial_delay is not None else settings.retry.retry_delay
     multiplier = (

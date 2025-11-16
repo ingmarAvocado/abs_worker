@@ -57,7 +57,7 @@ class TestHashNotarizationIntegration:
             "abs_worker.monitoring.get_settings", lambda: worker_settings
         ), patch("abs_worker.error_handler.get_session", mock_get_session), patch(
             "abs_worker.certificates.get_settings", lambda: worker_settings
-        ):
+        ), patch("abs_worker.error_handler.get_settings", lambda: worker_settings):
             # Setup blockchain mock
             mock_client = AsyncMock()
             mock_client.notarize_hash.return_value = mock_result
@@ -97,7 +97,9 @@ class TestHashNotarizationIntegration:
         # Note: Certificate functions are stubs, so we don't verify file existence yet
 
     @pytest.mark.asyncio
-    async def test_hash_notarization_blockchain_failure(self, db_context, test_document):
+    async def test_hash_notarization_blockchain_failure(
+        self, db_context, test_document, worker_settings
+    ):
         """Test hash notarization with blockchain failure using REAL database."""
         from abs_worker.notarization import process_hash_notarization
 
@@ -113,7 +115,9 @@ class TestHashNotarizationIntegration:
         # Mock blockchain to fail with realistic error
         with patch("abs_worker.notarization.get_session", mock_get_session), patch(
             "abs_worker.notarization.BlockchainClient"
-        ) as mock_client_class, patch("abs_worker.error_handler.get_session", mock_get_session):
+        ) as mock_client_class, patch(
+            "abs_worker.error_handler.get_session", mock_get_session
+        ), patch("abs_worker.error_handler.get_settings", lambda: worker_settings):
             mock_client = AsyncMock()
             mock_client.notarize_hash.side_effect = Exception("Blockchain connection failed")
             mock_client_class.return_value = mock_client
@@ -152,7 +156,7 @@ class TestHashNotarizationIntegration:
 
     @pytest.mark.asyncio
     async def test_hash_notarization_transaction_monitoring_failure(
-        self, db_context, test_document
+        self, db_context, test_document, worker_settings
     ):
         """Test hash notarization with transaction monitoring failure using REAL database."""
         from abs_worker.notarization import process_hash_notarization
@@ -169,7 +173,9 @@ class TestHashNotarizationIntegration:
             "abs_worker.notarization.BlockchainClient"
         ) as mock_client_class, patch(
             "abs_worker.notarization.monitor_transaction"
-        ) as mock_monitor, patch("abs_worker.error_handler.get_session", mock_get_session):
+        ) as mock_monitor, patch("abs_worker.error_handler.get_session", mock_get_session), patch(
+            "abs_worker.error_handler.get_settings", lambda: worker_settings
+        ):
             mock_client = AsyncMock()
             mock_client.notarize_hash.return_value = mock_result
             mock_client_class.return_value = mock_client
@@ -189,7 +195,7 @@ class TestHashNotarizationIntegration:
 
     @pytest.mark.asyncio
     async def test_hash_notarization_certificate_generation_failure(
-        self, db_context, test_document
+        self, db_context, test_document, worker_settings
     ):
         """Test hash notarization with certificate generation failure using REAL database."""
         from abs_worker.notarization import process_hash_notarization
@@ -208,7 +214,9 @@ class TestHashNotarizationIntegration:
             "abs_worker.notarization.monitor_transaction"
         ) as mock_monitor, patch(
             "abs_worker.notarization.generate_signed_json"
-        ) as mock_json_cert, patch("abs_worker.error_handler.get_session", mock_get_session):
+        ) as mock_json_cert, patch("abs_worker.error_handler.get_session", mock_get_session), patch(
+            "abs_worker.error_handler.get_settings", lambda: worker_settings
+        ):
             mock_client = AsyncMock()
             mock_client.notarize_hash.return_value = mock_result
             mock_client_class.return_value = mock_client
@@ -276,7 +284,7 @@ class TestHashNotarizationIntegration:
             "abs_worker.notarization.monitor_transaction"
         ) as mock_monitor, patch("abs_worker.error_handler.get_session", mock_get_session), patch(
             "abs_worker.certificates.get_settings", lambda: worker_settings
-        ):
+        ), patch("abs_worker.error_handler.get_settings", lambda: worker_settings):
             mock_client = AsyncMock()
             mock_client.notarize_hash.side_effect = mock_notarize_hash
             mock_client_class.return_value = mock_client
@@ -373,7 +381,7 @@ class TestErrorHandlingIntegration:
                 nonlocal call_count
                 call_count += 1
                 if call_count < 3:
-                    raise Exception("Temporary failure")
+                    raise Exception("connection timeout")
                 return "success"
 
             result = await retry_with_backoff(failing_function, max_retries=5)
@@ -392,9 +400,9 @@ class TestErrorHandlingIntegration:
             async def always_failing_function():
                 nonlocal call_count
                 call_count += 1
-                raise Exception("Permanent failure")
+                raise Exception("connection timeout")
 
-            with pytest.raises(Exception, match="Permanent failure"):
+            with pytest.raises(Exception, match="connection timeout"):
                 await retry_with_backoff(always_failing_function, max_retries=2)
 
             assert call_count == 3  # Initial call + 2 retries

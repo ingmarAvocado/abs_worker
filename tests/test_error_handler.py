@@ -65,10 +65,10 @@ class TestIsRetryableError:
         error = Exception("Unauthorized access")
         assert is_retryable_error(error) is False
 
-    def test_unknown_error_is_retryable(self):
-        """Test that unknown errors default to retryable"""
+    def test_unknown_error_not_retryable(self):
+        """Test that unknown errors default to not retryable (fail fast)"""
         error = Exception("Some random error message")
-        assert is_retryable_error(error) is True
+        assert is_retryable_error(error) is False
 
 
 class TestHandleFailedTransaction:
