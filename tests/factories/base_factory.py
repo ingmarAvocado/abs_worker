@@ -2,7 +2,7 @@
 import random
 import string
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Dict, Type, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from abs_orm import Base
@@ -96,11 +96,7 @@ class BaseFactory:
         return {}
 
     @classmethod
-    async def create(
-        cls,
-        session: AsyncSession,
-        **kwargs
-    ) -> T:
+    async def create(cls, session: AsyncSession, **kwargs) -> T:
         """Create and persist a model instance."""
         if cls.model is None:
             raise NotImplementedError("model attribute must be set")
@@ -119,12 +115,7 @@ class BaseFactory:
         return instance
 
     @classmethod
-    async def create_batch(
-        cls,
-        session: AsyncSession,
-        count: int,
-        **kwargs
-    ) -> list[T]:
+    async def create_batch(cls, session: AsyncSession, count: int, **kwargs) -> list[T]:
         """Create multiple instances."""
         instances = []
         for _ in range(count):

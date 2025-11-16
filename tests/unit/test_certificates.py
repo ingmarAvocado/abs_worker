@@ -6,8 +6,7 @@ import json
 import pytest
 from pathlib import Path
 from datetime import datetime
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from io import BytesIO
+from unittest.mock import Mock, patch
 
 from abs_worker.certificates import (
     generate_signed_json,
@@ -744,7 +743,6 @@ class TestErrorHandling:
     ):
         """Test that signing key file with insecure permissions is rejected"""
         from abs_worker.certificates import _read_signing_key
-        import stat
 
         # Create a test key file with insecure permissions (world-readable)
         key_file = tmp_path / "insecure_key.pem"

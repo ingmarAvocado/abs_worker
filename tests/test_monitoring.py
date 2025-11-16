@@ -3,8 +3,6 @@ Tests for transaction monitoring module
 """
 
 import pytest
-import asyncio
-from contextlib import asynccontextmanager
 from abs_worker.monitoring import (
     monitor_transaction,
     check_transaction_status,

@@ -12,7 +12,7 @@ import os
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
-from typing import Optional, Union
+from typing import Union
 
 
 class BlockchainSettings(BaseSettings):
@@ -87,6 +87,34 @@ class WorkerSettings(BaseSettings):
         default=10,
         gt=0,
         description="Maximum number of concurrent worker tasks",
+    )
+
+
+class NFTSettings(BaseSettings):
+    """NFT-specific configuration for minting and metadata."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="NFT_",
+        case_sensitive=False,
+    )
+
+    max_file_size_mb: int = Field(
+        default=100,
+        gt=0,
+        description="Maximum file size in MB for NFT uploads to Arweave",
+    )
+    max_metadata_size_kb: int = Field(
+        default=50,
+        gt=0,
+        description="Maximum metadata JSON size in KB for NFT metadata",
+    )
+    default_blockchain: str = Field(
+        default="polygon",
+        description="Default blockchain network for NFT minting",
+    )
+    enable_metadata_validation: bool = Field(
+        default=True,
+        description="Enable validation of NFT metadata before minting",
     )
 
 
@@ -234,6 +262,7 @@ class Settings(BaseSettings):
     retry: RetrySettings = Field(default_factory=RetrySettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     certificate: CertificateSettings = Field(default_factory=CertificateSettings)
+    nft: NFTSettings = Field(default_factory=NFTSettings)
 
     # Top-level settings
     log_level: str = Field(

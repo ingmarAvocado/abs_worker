@@ -24,17 +24,12 @@ class TestFactoryBasicUsage:
     async def test_with_factory_class(self, db_context, user_factory, document_factory):
         """Use factory classes directly for more control."""
         # Create a user with specific email
-        user = await user_factory.create(
-            db_context.session,
-            email="custom@example.com"
-        )
+        user = await user_factory.create(db_context.session, email="custom@example.com")
         await db_context.commit()
 
         # Create a document for that user
         doc = await document_factory.create_pending(
-            db_context.session,
-            owner=user,
-            file_name="custom_file.pdf"
+            db_context.session, owner=user, file_name="custom_file.pdf"
         )
         await db_context.commit()
 
@@ -99,10 +94,7 @@ class TestFactoryAdvancedPatterns:
     async def test_user_with_relationships(self, db_context):
         """Create users with related documents and API keys."""
         # Create user with documents
-        user, documents = await UserFactory.create_with_documents(
-            db_context.session,
-            doc_count=3
-        )
+        user, documents = await UserFactory.create_with_documents(db_context.session, doc_count=3)
         await db_context.commit()
 
         assert len(documents) == 3

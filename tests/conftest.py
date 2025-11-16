@@ -2,18 +2,20 @@
 Pytest configuration and shared fixtures for abs_worker tests with real database
 """
 
-import asyncio
 import os
-from datetime import datetime
-from typing import AsyncGenerator, Dict
+from typing import Dict
 
 import asyncpg
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
-from unittest.mock import AsyncMock
 
 from abs_orm import Base
 from abs_worker.config import Settings
@@ -24,11 +26,13 @@ from tests.mocks import MockBlockchain
 # Load environment variables
 load_dotenv()
 
+
 # Safety check: prevent accidental production database access
 def _validate_test_environment():
     """Validate that we're in a test environment and not accidentally using production database."""
     # Check if we're running in a test context
     import sys
+
     is_pytest = "pytest" in sys.modules or (sys.argv and "pytest" in sys.argv[0])
 
     # If we're running tests, allow the environment but add warnings
@@ -37,7 +41,9 @@ def _validate_test_environment():
         current_db = os.getenv("DB_NAME", "").lower()
 
         if current_db in production_db_names:
-            print(f"⚠️  WARNING: DB_NAME is set to '{current_db}' but tests will use isolated test databases.")
+            print(
+                f"⚠️  WARNING: DB_NAME is set to '{current_db}' but tests will use isolated test databases."
+            )
             print("   This is safe - each test creates its own database like 'test_module_worker'")
         return  # Allow tests to proceed
 
@@ -59,6 +65,7 @@ def _validate_test_environment():
             f"Use localhost or development hosts only."
         )
 
+
 # Run safety check on import
 _validate_test_environment()
 
@@ -77,7 +84,7 @@ async def _check_database_availability():
             user=user,
             password=password,
             database="postgres",
-            timeout=5  # 5 second timeout
+            timeout=5,  # 5 second timeout
         )
         await conn.close()
         return True
@@ -89,6 +96,7 @@ async def _check_database_availability():
 async def database_available():
     """Check if database is available and skip integration tests if not."""
     return await _check_database_availability()
+
 
 # Cache for engines per module to reuse across tests
 _engine_cache: Dict[str, AsyncEngine] = {}
@@ -123,11 +131,7 @@ async def create_test_database(db_name: str) -> None:
     password = os.getenv("DB_PASSWORD", "password")
 
     conn = await asyncpg.connect(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database="postgres"
+        host=host, port=port, user=user, password=password, database="postgres"
     )
 
     try:
@@ -153,20 +157,19 @@ async def drop_test_database(db_name: str) -> None:
     password = os.getenv("DB_PASSWORD", "password")
 
     conn = await asyncpg.connect(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database="postgres"
+        host=host, port=port, user=user, password=password, database="postgres"
     )
 
     try:
-        await conn.execute(f"""
+        await conn.execute(
+            """
             SELECT pg_terminate_backend(pg_stat_activity.pid)
             FROM pg_stat_activity
             WHERE pg_stat_activity.datname = $1
             AND pid <> pg_backend_pid()
-        """, db_name)
+        """,
+            db_name,
+        )
         await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
         _db_created.pop(db_name, None)
     finally:
@@ -175,10 +178,10 @@ async def drop_test_database(db_name: str) -> None:
 
 def get_test_db_name(request) -> str:
     """Generate database name for the test module."""
-    module_name = request.module.__name__.split('.')[-1]
+    module_name = request.module.__name__.split(".")[-1]
 
     # Add worker id if running in parallel
-    worker_id = getattr(request.config, 'workerinput', {}).get('workerid', '')
+    worker_id = getattr(request.config, "workerinput", {}).get("workerid", "")
     if worker_id:
         return f"test_{module_name}_{worker_id}"
     else:
@@ -211,9 +214,7 @@ async def get_or_create_engine(db_name: str) -> AsyncEngine:
 @pytest_asyncio.fixture
 async def db_context(request):
     """Create a DatabaseContext-like wrapper for testing with proper isolation."""
-    from abs_orm.repositories import (
-        UserRepository, DocumentRepository, ApiKeyRepository
-    )
+    from abs_orm.repositories import UserRepository, DocumentRepository, ApiKeyRepository
 
     # Get database name for this module
     db_name = get_test_db_name(request)
@@ -286,6 +287,7 @@ async def session(db_context):
 @pytest.fixture(scope="session", autouse=True)
 def cleanup(request):
     """Clean up after all tests."""
+
     def finalizer():
         # Use asyncio to run async cleanup
         import asyncio
@@ -330,10 +332,16 @@ def cleanup(request):
 # abs_worker specific fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def worker_settings(tmp_path):
     """Provide test configuration settings"""
-    from abs_worker.config import BlockchainSettings, RetrySettings, WorkerSettings, CertificateSettings
+    from abs_worker.config import (
+        BlockchainSettings,
+        RetrySettings,
+        WorkerSettings,
+        CertificateSettings,
+    )
 
     # Create temporary certificate storage path for tests
     cert_storage = tmp_path / "certificates"
@@ -349,8 +357,7 @@ def worker_settings(tmp_path):
         retry=RetrySettings(max_retries=2, retry_delay=1),
         worker=WorkerSettings(timeout=60, max_concurrent_tasks=5),
         certificate=CertificateSettings(
-            storage_path=str(cert_storage),
-            signing_key_path=str(signing_key)
+            storage_path=str(cert_storage), signing_key_path=str(signing_key)
         ),
         log_level="DEBUG",
         environment="test",
@@ -452,6 +459,7 @@ async def test_workflow_documents(db_context):
 # Mock fixtures for external services (blockchain, etc.)
 # ============================================================================
 
+
 @pytest.fixture
 async def mock_blockchain():
     """Provide mock blockchain interface for testing"""
@@ -475,6 +483,7 @@ def mock_transaction_receipt():
 # ============================================================================
 # Backward compatibility aliases (deprecated - use test_* fixtures instead)
 # ============================================================================
+
 
 @pytest_asyncio.fixture
 async def mock_document(test_document):
@@ -503,6 +512,7 @@ async def mock_completed_document(test_on_chain_document):
 # ============================================================================
 # Factory class fixtures for direct use in tests
 # ============================================================================
+
 
 @pytest.fixture
 def user_factory():

@@ -11,23 +11,17 @@ This module handles:
 import json
 import hashlib
 from pathlib import Path
-from typing import Dict, Any, Optional
-from datetime import datetime
+from typing import Optional
 from io import BytesIO
 
 # Third-party imports
 import qrcode
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 # Cryptography imports
 from cryptography.hazmat.primitives.asymmetric import ec, utils
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
 
@@ -214,7 +208,7 @@ async def generate_signed_pdf(doc: Document) -> str:
     c.setFillColorRGB(0.3, 0.3, 0.3)
     y_pos -= 25
 
-    c.drawString(70, y_pos, f"Blockchain: Polygon")
+    c.drawString(70, y_pos, "Blockchain: Polygon")
     y_pos -= 20
     tx_hash = getattr(doc, "transaction_hash", None)
     tx_hash_display = f"{str(tx_hash)[:32]}..." if tx_hash else "Pending"

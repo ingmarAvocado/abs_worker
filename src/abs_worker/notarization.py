@@ -7,6 +7,7 @@ This module contains the business logic for:
 - Document status transitions
 """
 
+import time
 from abs_orm import get_session, DocumentRepository, DocStatus
 from abs_blockchain import BlockchainClient
 from abs_utils.logger import get_logger
@@ -137,6 +138,7 @@ async def process_nft_notarization(client: BlockchainClient, doc_id: int) -> Non
     Raises:
         Exception: If transaction permanently fails after all retries
     """
+    start_time = time.time()
     logger.info(f"Starting NFT notarization for document {doc_id}", extra={"doc_id": doc_id})
 
     async with get_session() as session:
@@ -232,6 +234,7 @@ async def process_nft_notarization(client: BlockchainClient, doc_id: int) -> Non
             )
             await session.commit()
 
+            duration = time.time() - start_time
             logger.info(
                 f"NFT notarization completed for document {doc_id}",
                 extra={
@@ -240,13 +243,15 @@ async def process_nft_notarization(client: BlockchainClient, doc_id: int) -> Non
                     "token_id": token_id,
                     "arweave_file_url": arweave_file_url,
                     "arweave_metadata_url": arweave_metadata_url,
+                    "duration_seconds": round(duration, 2),
                 },
             )
 
         except Exception as e:
+            duration = time.time() - start_time
             logger.error(
                 f"NFT notarization failed for document {doc_id}: {e}",
-                extra={"doc_id": doc_id, "error": str(e)},
+                extra={"doc_id": doc_id, "error": str(e), "duration_seconds": round(duration, 2)},
             )
             # Mark document as ERROR - this is called after retries are exhausted
             await handle_failed_transaction(doc_id, e)

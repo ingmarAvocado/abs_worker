@@ -443,7 +443,6 @@ class TestProcessNftNotarization:
             # Clean up temp file
             os.unlink(temp_file_path)
 
-    @pytest.mark.skip(reason="NFT notarization not yet implemented - TODO: Issue #7")
     @pytest.mark.asyncio
     async def test_arweave_upload_error(self, mock_nft_document, monkeypatch):
         """Test handling of Arweave upload errors"""
