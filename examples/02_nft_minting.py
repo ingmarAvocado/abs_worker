@@ -244,9 +244,10 @@ class MockBlockchain:
         tx_hash = f"0x{self.next_tx_id:064x}"
         self.next_tx_id += 1
 
-        # Simulate automatic Arweave upload
+        # Simulate automatic Arweave upload (both file and metadata)
         arweave_id = f"{random.randint(100000, 999999)}"
-        arweave_url = f"https://arweave.net/{arweave_id}"
+        arweave_file_url = f"https://arweave.net/{arweave_id}"
+        arweave_metadata_url = f"https://arweave.net/{arweave_id}_metadata"
 
         # Simulate NFT minting
         token_id = random.randint(1, 10000)
@@ -258,13 +259,15 @@ class MockBlockchain:
             "block_number": self.current_block,
             "status": 1,  # Success
             "token_id": token_id,
-            "arweave_url": arweave_url,
+            "arweave_file_url": arweave_file_url,
+            "arweave_metadata_url": arweave_metadata_url,
         }
 
         # Return comprehensive result
         result = NotarizationResult(tx_hash)
         result.token_id = token_id
-        result.arweave_url = arweave_url
+        result.arweave_file_url = arweave_file_url
+        result.arweave_metadata_url = arweave_metadata_url
         result.notarization_type = "nft"
 
         return result
@@ -346,7 +349,8 @@ async def nft_minting_workflow():
     """
     print("=== NFT Minting Workflow Example ===\n")
 
-    from abs_worker.notarization import process_nft_notarization
+    # Note: This example uses mocks, so we don't import the real implementation
+    # from abs_worker.notarization import process_nft_notarization
 
     logger = get_logger("nft_example")
     repo = MockDocumentRepository()
@@ -427,12 +431,14 @@ async def nft_minting_workflow():
 
             tx_hash = result.transaction_hash
             token_id = result.token_id
-            arweave_url = result.arweave_url  # Automatically uploaded!
+            arweave_file_url = result.arweave_file_url  # File automatically uploaded!
+            arweave_metadata_url = result.arweave_metadata_url  # Metadata too!
 
             print(f"   Transaction hash: {tx_hash}")
             print(f"   NFT Token ID: {token_id}")
-            print(f"   Arweave URL: {arweave_url}")
-            print("   ✨ File automatically stored on Arweave (permanent!)✨")
+            print(f"   Arweave File URL: {arweave_file_url}")
+            print(f"   Arweave Metadata URL: {arweave_metadata_url}")
+            print("   ✨ File & metadata automatically stored on Arweave (permanent!)✨")
 
             # Step 5: Monitor transaction
             print("\n5. ✓ Monitor transaction until confirmed")
@@ -452,7 +458,7 @@ async def nft_minting_workflow():
                 transaction_hash=tx_hash,
                 signed_json_path=json_path,
                 signed_pdf_path=pdf_path,
-                arweave_file_url=arweave_url,
+                arweave_file_url=arweave_file_url,
                 nft_token_id=token_id,
             )
             print(f"\n7. ✓ Update document status to: {final_doc.status.value}")
