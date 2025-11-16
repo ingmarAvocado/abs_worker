@@ -313,3 +313,104 @@ def test_env_file_loading(tmp_path, monkeypatch):
     assert settings.blockchain.required_confirmations == 15
     assert settings.retry.max_retries == 8
     assert settings.log_level == "ERROR"
+
+
+def test_validation_certificate_signing_key_hex():
+    """Test that signing_key_hex must be valid hex and correct length."""
+    # Valid key should work
+    settings = Settings(
+        certificate=CertificateSettings(
+            storage_path="/tmp/test/certificates",
+            signing_key_hex="0x" + "a" * 64,  # 32 bytes hex
+        ),
+    )
+    assert settings.certificate.signing_key_hex == "a" * 64  # Should strip 0x prefix
+
+    # Valid key without 0x prefix should work
+    settings = Settings(
+        certificate=CertificateSettings(
+            storage_path="/tmp/test/certificates",
+            signing_key_hex="b" * 64,
+        ),
+    )
+    assert settings.certificate.signing_key_hex == "b" * 64
+
+    # Invalid hex should fail
+    with pytest.raises(ValidationError):
+        Settings(
+            certificate=CertificateSettings(
+                storage_path="/tmp/test/certificates",
+                signing_key_hex="invalid_hex",
+            ),
+        )
+
+    # Wrong length should fail
+    with pytest.raises(ValidationError):
+        Settings(
+            certificate=CertificateSettings(
+                storage_path="/tmp/test/certificates",
+                signing_key_hex="0x" + "c" * 32,  # Too short
+            ),
+        )
+
+    # None/empty should be allowed
+    settings = Settings(
+        certificate=CertificateSettings(
+            storage_path="/tmp/test/certificates",
+            signing_key_hex=None,
+        ),
+    )
+    assert settings.certificate.signing_key_hex is None
+
+    settings = Settings(
+        certificate=CertificateSettings(
+            storage_path="/tmp/test/certificates",
+            signing_key_hex="",
+        ),
+    )
+    assert settings.certificate.signing_key_hex == ""
+
+
+def test_validation_certificate_version():
+    """Test that certificate_version must be semantic version."""
+    # Valid versions should work
+    settings = Settings(
+        certificate=CertificateSettings(
+            storage_path="/tmp/test/certificates",
+            certificate_version="1.0",
+        ),
+    )
+    assert settings.certificate.certificate_version == "1.0"
+
+    settings = Settings(
+        certificate=CertificateSettings(
+            storage_path="/tmp/test/certificates",
+            certificate_version="2.1.3",
+        ),
+    )
+    assert settings.certificate.certificate_version == "2.1.3"
+
+    # Invalid versions should fail
+    with pytest.raises(ValidationError):
+        Settings(
+            certificate=CertificateSettings(
+                storage_path="/tmp/test/certificates",
+                certificate_version="1",
+            ),
+        )
+
+    with pytest.raises(ValidationError):
+        Settings(
+            certificate=CertificateSettings(
+                storage_path="/tmp/test/certificates",
+                certificate_version="1.0.0.0",
+            ),
+        )
+
+    with pytest.raises(ValidationError):
+        Settings(
+            certificate=CertificateSettings(
+                storage_path="/tmp/test/certificates",
+                certificate_version="invalid",
+            ),
+        )

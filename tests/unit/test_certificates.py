@@ -12,7 +12,8 @@ from io import BytesIO
 from abs_worker.certificates import (
     generate_signed_json,
     generate_signed_pdf,
-    _sign_certificate
+    _sign_certificate,
+    verify_certificate,
 )
 
 
@@ -74,7 +75,9 @@ class TestGenerateSignedJson:
     """Tests for generate_signed_json function"""
 
     @pytest.mark.asyncio
-    async def test_generate_json_with_hash_document(self, mock_document, mock_settings, monkeypatch):
+    async def test_generate_json_with_hash_document(
+        self, mock_document, mock_settings, monkeypatch
+    ):
         """Test JSON certificate generation for hash-type document"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
 
@@ -92,7 +95,7 @@ class TestGenerateSignedJson:
         assert cert_path.endswith(".json")
 
         # Verify certificate content
-        with open(cert_path, 'r') as f:
+        with open(cert_path, "r") as f:
             cert_data = json.load(f)
 
         assert cert_data["document_id"] == 123
@@ -113,7 +116,9 @@ class TestGenerateSignedJson:
         assert "arweave_metadata_url" not in cert_data
 
     @pytest.mark.asyncio
-    async def test_generate_json_with_nft_document(self, mock_nft_document, mock_settings, monkeypatch):
+    async def test_generate_json_with_nft_document(
+        self, mock_nft_document, mock_settings, monkeypatch
+    ):
         """Test JSON certificate generation for NFT-type document"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
 
@@ -129,7 +134,7 @@ class TestGenerateSignedJson:
         assert Path(cert_path).exists()
 
         # Verify certificate content
-        with open(cert_path, 'r') as f:
+        with open(cert_path, "r") as f:
             cert_data = json.load(f)
 
         # Check standard fields
@@ -143,7 +148,9 @@ class TestGenerateSignedJson:
         assert cert_data["arweave_metadata_url"] == "https://arweave.net/metadata_hash_789012"
 
     @pytest.mark.asyncio
-    async def test_json_certificate_file_path_structure(self, mock_document, mock_settings, monkeypatch):
+    async def test_json_certificate_file_path_structure(
+        self, mock_document, mock_settings, monkeypatch
+    ):
         """Test that JSON certificate is saved with correct path structure"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
 
@@ -165,7 +172,9 @@ class TestGenerateSignedJson:
         assert "abcdef12" in path.name  # First 8 chars of file_hash
 
     @pytest.mark.asyncio
-    async def test_json_signature_changes_with_data(self, mock_document, mock_settings, monkeypatch):
+    async def test_json_signature_changes_with_data(
+        self, mock_document, mock_settings, monkeypatch
+    ):
         """Test that signature is different for different data"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
 
@@ -174,6 +183,7 @@ class TestGenerateSignedJson:
         async def capture_sign(data):
             # Generate different signature based on data
             import hashlib
+
             data_str = json.dumps(data, sort_keys=True)
             return "0x" + hashlib.sha256(data_str.encode()).hexdigest() * 2  # 128 chars
 
@@ -181,7 +191,7 @@ class TestGenerateSignedJson:
 
         # Generate first certificate
         cert_path1 = await generate_signed_json(mock_document)
-        with open(cert_path1, 'r') as f:
+        with open(cert_path1, "r") as f:
             cert1 = json.load(f)
 
         # Modify document
@@ -189,7 +199,7 @@ class TestGenerateSignedJson:
 
         # Generate second certificate
         cert_path2 = await generate_signed_json(mock_document)
-        with open(cert_path2, 'r') as f:
+        with open(cert_path2, "r") as f:
             cert2 = json.load(f)
 
         # Signatures should be different
@@ -217,12 +227,14 @@ class TestGenerateSignedPdf:
         assert cert_path.endswith(".pdf")
 
         # Verify it's a valid PDF (starts with PDF header)
-        with open(cert_path, 'rb') as f:
+        with open(cert_path, "rb") as f:
             content = f.read()
-            assert content.startswith(b'%PDF-')
+            assert content.startswith(b"%PDF-")
 
     @pytest.mark.asyncio
-    async def test_pdf_contains_document_information(self, mock_document, mock_settings, monkeypatch):
+    async def test_pdf_contains_document_information(
+        self, mock_document, mock_settings, monkeypatch
+    ):
         """Test that PDF contains all required document information"""
         pytest.skip("Full PDF generation not implemented yet")
 
@@ -238,27 +250,27 @@ class TestGenerateSignedPdf:
                 self.current_page = []
 
             def drawString(self, x, y, text):
-                self.current_page.append(('text', x, y, text))
+                self.current_page.append(("text", x, y, text))
                 rendered_content.append(text)
 
             def drawCentredString(self, x, y, text):
-                self.current_page.append(('centered', x, y, text))
+                self.current_page.append(("centered", x, y, text))
                 rendered_content.append(text)
 
             def drawImage(self, img, x, y, width, height):
-                self.current_page.append(('image', x, y, width, height))
+                self.current_page.append(("image", x, y, width, height))
 
             def setFont(self, name, size):
-                self.current_page.append(('font', name, size))
+                self.current_page.append(("font", name, size))
 
             def setFillColorRGB(self, r, g, b):
-                self.current_page.append(('color', r, g, b))
+                self.current_page.append(("color", r, g, b))
 
             def line(self, x1, y1, x2, y2):
-                self.current_page.append(('line', x1, y1, x2, y2))
+                self.current_page.append(("line", x1, y1, x2, y2))
 
             def rect(self, x, y, width, height, fill=0):
-                self.current_page.append(('rect', x, y, width, height, fill))
+                self.current_page.append(("rect", x, y, width, height, fill))
 
             def showPage(self):
                 self.pages.append(self.current_page)
@@ -268,7 +280,8 @@ class TestGenerateSignedPdf:
                 if self.current_page:
                     self.pages.append(self.current_page)
 
-        with patch('abs_worker.certificates.canvas.Canvas', MockCanvas):
+        with patch("abs_worker.certificates.canvas.Canvas", MockCanvas):
+
             async def mock_qr(url):
                 return b"fake_qr_image"
 
@@ -282,12 +295,15 @@ class TestGenerateSignedPdf:
             cert_path = await generate_signed_pdf(mock_document)
 
         # Verify content includes required information
-        content_str = ' '.join(rendered_content)
+        content_str = " ".join(rendered_content)
 
         assert "Blockchain Notarization Certificate" in content_str
         assert "test_contract.pdf" in content_str
         assert mock_document.file_hash in content_str or mock_document.file_hash[:16] in content_str
-        assert mock_document.transaction_hash in content_str or mock_document.transaction_hash[:16] in content_str
+        assert (
+            mock_document.transaction_hash in content_str
+            or mock_document.transaction_hash[:16] in content_str
+        )
         assert "42000000" in content_str  # block number
         assert "polygon" in content_str.lower()
 
@@ -318,7 +334,9 @@ class TestGenerateSignedPdf:
         assert qr_url_captured == expected_url
 
     @pytest.mark.asyncio
-    async def test_nft_pdf_includes_arweave_info(self, mock_nft_document, mock_settings, monkeypatch):
+    async def test_nft_pdf_includes_arweave_info(
+        self, mock_nft_document, mock_settings, monkeypatch
+    ):
         """Test that NFT PDF includes Arweave URLs"""
         pytest.skip("NFT PDF generation not implemented yet")
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
@@ -356,7 +374,8 @@ class TestGenerateSignedPdf:
             def save(self):
                 pass
 
-        with patch('abs_worker.certificates.canvas.Canvas', MockCanvas):
+        with patch("abs_worker.certificates.canvas.Canvas", MockCanvas):
+
             async def mock_qr(url):
                 return b"fake_qr"
 
@@ -369,13 +388,16 @@ class TestGenerateSignedPdf:
 
             cert_path = await generate_signed_pdf(mock_nft_document)
 
-        content_str = ' '.join(rendered_content)
+        content_str = " ".join(rendered_content)
 
         # Verify NFT-specific content
         assert "NFT" in content_str or "nft" in content_str
         assert "Token ID: 42" in content_str or "42" in content_str
         assert "arweave.net/file_hash_123456" in content_str or "file_hash_123456" in content_str
-        assert "arweave.net/metadata_hash_789012" in content_str or "metadata_hash_789012" in content_str
+        assert (
+            "arweave.net/metadata_hash_789012" in content_str
+            or "metadata_hash_789012" in content_str
+        )
 
     @pytest.mark.asyncio
     async def test_pdf_file_path_structure(self, mock_document, mock_settings, monkeypatch):
@@ -422,7 +444,7 @@ class TestQRCodeGeneration:
         assert len(qr_bytes) > 0
 
         # Verify it's a PNG image (PNG header: 89 50 4E 47)
-        assert qr_bytes[:4] == b'\x89PNG'
+        assert qr_bytes[:4] == b"\x89PNG"
 
     @pytest.mark.asyncio
     async def test_qr_code_encodes_correct_url(self):
@@ -436,7 +458,7 @@ class TestQRCodeGeneration:
 
         # Verify the image was created properly
         img = Image.open(BytesIO(qr_bytes))
-        assert img.format == 'PNG'
+        assert img.format == "PNG"
         assert img.size[0] > 0
         assert img.size[1] > 0
 
@@ -452,11 +474,7 @@ class TestCryptographicSigning:
         # Mock private key
         mock_private_key = "0x" + "1" * 64  # 32 bytes hex
 
-        data = {
-            "document_id": 123,
-            "file_hash": "0xabc123",
-            "transaction_hash": "0xdef456"
-        }
+        data = {"document_id": 123, "file_hash": "0xabc123", "transaction_hash": "0xdef456"}
 
         signature = await _create_certificate_signature(data, mock_private_key)
 
@@ -469,7 +487,10 @@ class TestCryptographicSigning:
     @pytest.mark.asyncio
     async def test_verify_certificate_signature(self):
         """Test signature verification"""
-        from abs_worker.certificates import _create_certificate_signature, _verify_certificate_signature
+        from abs_worker.certificates import (
+            _create_certificate_signature,
+            _verify_certificate_signature,
+        )
 
         # Create a test keypair
         from cryptography.hazmat.primitives.asymmetric import ec
@@ -479,20 +500,16 @@ class TestCryptographicSigning:
         public_key = private_key.public_key()
 
         # Convert to hex format
-        private_bytes = private_key.private_numbers().private_value.to_bytes(32, 'big')
+        private_bytes = private_key.private_numbers().private_value.to_bytes(32, "big")
         private_hex = "0x" + private_bytes.hex()
 
         public_bytes = public_key.public_bytes(
             encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint
+            format=serialization.PublicFormat.UncompressedPoint,
         )
         public_hex = "0x" + public_bytes.hex()
 
-        data = {
-            "document_id": 456,
-            "file_hash": "0xtest",
-            "transaction_hash": "0xverify"
-        }
+        data = {"document_id": 456, "file_hash": "0xtest", "transaction_hash": "0xverify"}
 
         # Sign data
         signature = await _create_certificate_signature(data, private_hex)
@@ -525,6 +542,97 @@ class TestCryptographicSigning:
         pytest.skip("ECDSA signatures include randomness - not deterministic")
 
 
+class TestCertificateVerification:
+    """Tests for certificate verification functionality"""
+
+    @pytest.mark.asyncio
+    async def test_verify_certificate_with_valid_signature(
+        self, mock_document, mock_settings, tmp_path, monkeypatch
+    ):
+        """Test verifying a certificate with valid signature"""
+        monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
+
+        # Create a test keypair
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+
+        private_key = ec.generate_private_key(ec.SECP256K1())
+        public_key = private_key.public_key()
+
+        # Convert to hex format
+        private_bytes = private_key.private_numbers().private_value.to_bytes(32, "big")
+        private_hex = "0x" + private_bytes.hex()
+
+        public_bytes = public_key.public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint,
+        )
+        public_hex = "0x" + public_bytes.hex()
+
+        # Generate a certificate
+        async def mock_sign(data):
+            from abs_worker.certificates import _create_certificate_signature
+
+            return await _create_certificate_signature(data, private_hex)
+
+        monkeypatch.setattr("abs_worker.certificates._sign_certificate", mock_sign)
+
+        cert_path = await generate_signed_json(mock_document)
+
+        # Verify the certificate
+        is_valid = await verify_certificate(cert_path, public_hex)
+
+        assert is_valid is True
+
+    @pytest.mark.asyncio
+    async def test_verify_certificate_with_invalid_signature(
+        self, mock_document, mock_settings, tmp_path, monkeypatch
+    ):
+        """Test verifying a certificate with tampered signature"""
+        monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
+
+        # Create a test keypair
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+
+        private_key = ec.generate_private_key(ec.SECP256K1())
+        public_key = private_key.public_key()
+
+        public_bytes = public_key.public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint,
+        )
+        public_hex = "0x" + public_bytes.hex()
+
+        # Generate a certificate
+        async def mock_sign(data):
+            return "0x" + "0" * 128  # Invalid signature
+
+        monkeypatch.setattr("abs_worker.certificates._sign_certificate", mock_sign)
+
+        cert_path = await generate_signed_json(mock_document)
+
+        # Verify the certificate (should fail)
+        is_valid = await verify_certificate(cert_path, public_hex)
+
+        assert is_valid is False
+
+    @pytest.mark.asyncio
+    async def test_verify_certificate_file_not_found(self):
+        """Test verifying a non-existent certificate file"""
+        with pytest.raises(FileNotFoundError):
+            await verify_certificate("/non/existent/certificate.json", "0x123")
+
+    @pytest.mark.asyncio
+    async def test_verify_certificate_invalid_json(self, tmp_path):
+        """Test verifying a certificate with invalid JSON"""
+        invalid_cert_path = tmp_path / "invalid.json"
+        invalid_cert_path.write_text("not json")
+
+        with pytest.raises(json.JSONDecodeError):
+            await verify_certificate(str(invalid_cert_path), "0x123")
+
+
 class TestSignCertificate:
     """Tests for the main _sign_certificate function"""
 
@@ -542,11 +650,7 @@ class TestSignCertificate:
 
         monkeypatch.setattr("abs_worker.certificates._read_signing_key", mock_read_key)
 
-        data = {
-            "document_id": 777,
-            "file_hash": "0xintegration",
-            "transaction_hash": "0xtest"
-        }
+        data = {"document_id": 777, "file_hash": "0xintegration", "transaction_hash": "0xtest"}
 
         signature = await _sign_certificate(data)
 
@@ -555,7 +659,9 @@ class TestSignCertificate:
         assert len(signature) == 130  # ECDSA signature length
 
     @pytest.mark.asyncio
-    async def test_sign_certificate_raises_exception_when_key_missing(self, mock_settings, monkeypatch):
+    async def test_sign_certificate_raises_exception_when_key_missing(
+        self, mock_settings, monkeypatch
+    ):
         """Test that missing signing key raises SigningKeyNotFoundError"""
         from abs_worker.certificates import SigningKeyNotFoundError
 
@@ -606,7 +712,9 @@ class TestErrorHandling:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     @pytest.mark.asyncio
-    async def test_pdf_generation_handles_invalid_qr_url(self, mock_document, mock_settings, monkeypatch):
+    async def test_pdf_generation_handles_invalid_qr_url(
+        self, mock_document, mock_settings, monkeypatch
+    ):
         """Test PDF generation with invalid QR URL"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: mock_settings)
 
@@ -631,7 +739,9 @@ class TestErrorHandling:
         assert Path(cert_path).exists()
 
     @pytest.mark.asyncio
-    async def test_file_permission_check_rejects_insecure_permissions(self, tmp_path, mock_settings, monkeypatch):
+    async def test_file_permission_check_rejects_insecure_permissions(
+        self, tmp_path, mock_settings, monkeypatch
+    ):
         """Test that signing key file with insecure permissions is rejected"""
         from abs_worker.certificates import _read_signing_key
         import stat
@@ -655,7 +765,9 @@ class TestErrorHandling:
         assert "permission" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_file_permission_check_accepts_secure_permissions(self, tmp_path, mock_settings, monkeypatch):
+    async def test_file_permission_check_accepts_secure_permissions(
+        self, tmp_path, mock_settings, monkeypatch
+    ):
         """Test that signing key file with secure permissions (600) is accepted"""
         from abs_worker.certificates import _read_signing_key
 

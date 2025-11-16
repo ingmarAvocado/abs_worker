@@ -35,6 +35,13 @@ from cryptography.exceptions import InvalidSignature
 from abs_utils.logger import get_logger
 from abs_worker.config import get_settings
 
+# Type imports (assuming abs_orm provides Document type)
+try:
+    from abs_orm import Document
+except ImportError:
+    # Fallback for type checking when abs_orm not available
+    from typing import Any as Document
+
 logger = get_logger(__name__)
 
 
@@ -46,10 +53,11 @@ class SigningKeyNotFoundError(Exception):
     This error indicates that the certificate generation process cannot proceed
     because the required cryptographic signing key is missing or inaccessible.
     """
+
     pass
 
 
-async def generate_signed_json(doc) -> str:
+async def generate_signed_json(doc: Document) -> str:
     """
     Generate signed JSON certificate for notarized document
 
@@ -89,18 +97,18 @@ async def generate_signed_json(doc) -> str:
         "timestamp": doc.created_at.isoformat()
         if hasattr(doc.created_at, "isoformat")
         else str(doc.created_at),
-        "type": doc.type.value if hasattr(doc.type, "value") else str(doc.type),
+        "type": getattr(doc.type, "value", str(doc.type)),
         "blockchain": "polygon",
         "certificate_version": "1.0",
     }
 
     # Add NFT-specific fields
-    if hasattr(doc, "nft_token_id") and doc.nft_token_id is not None:
+    if getattr(doc, "nft_token_id", None) is not None:
         cert_data.update(
             {
-                "arweave_file_url": doc.arweave_file_url,
-                "arweave_metadata_url": doc.arweave_metadata_url,
-                "nft_token_id": doc.nft_token_id,
+                "arweave_file_url": getattr(doc, "arweave_file_url", None),
+                "arweave_metadata_url": getattr(doc, "arweave_metadata_url", None),
+                "nft_token_id": getattr(doc, "nft_token_id", None),
             }
         )
 
@@ -113,7 +121,8 @@ async def generate_signed_json(doc) -> str:
     cert_dir.mkdir(parents=True, exist_ok=True)
 
     # Get first 8 chars of hash, removing 0x prefix if present
-    hash_prefix = doc.file_hash[2:10] if doc.file_hash.startswith("0x") else doc.file_hash[:8]
+    file_hash_str = str(doc.file_hash)
+    hash_prefix = file_hash_str[2:10] if file_hash_str.startswith("0x") else file_hash_str[:8]
     cert_path = cert_dir / f"cert_{doc.id}_{hash_prefix}.json"
 
     with open(cert_path, "w") as f:
@@ -123,7 +132,7 @@ async def generate_signed_json(doc) -> str:
     return str(cert_path)
 
 
-async def generate_signed_pdf(doc) -> str:
+async def generate_signed_pdf(doc: Document) -> str:
     """
     Generate signed PDF certificate for notarized document
 
@@ -147,7 +156,8 @@ async def generate_signed_pdf(doc) -> str:
     cert_dir.mkdir(parents=True, exist_ok=True)
 
     # Get first 8 chars of hash, removing 0x prefix if present
-    hash_prefix = doc.file_hash[2:10] if doc.file_hash.startswith("0x") else doc.file_hash[:8]
+    file_hash_str = str(doc.file_hash)
+    hash_prefix = file_hash_str[2:10] if file_hash_str.startswith("0x") else file_hash_str[:8]
     cert_path = cert_dir / f"cert_{doc.id}_{hash_prefix}.pdf"
 
     # Create PDF
@@ -206,11 +216,9 @@ async def generate_signed_pdf(doc) -> str:
 
     c.drawString(70, y_pos, f"Blockchain: Polygon")
     y_pos -= 20
-    c.drawString(
-        70,
-        y_pos,
-        f"Transaction Hash: {doc.transaction_hash[:32] if doc.transaction_hash else 'Pending'}...",
-    )
+    tx_hash = getattr(doc, "transaction_hash", None)
+    tx_hash_display = f"{str(tx_hash)[:32]}..." if tx_hash else "Pending"
+    c.drawString(70, y_pos, f"Transaction Hash: {tx_hash_display}")
     y_pos -= 20
     c.drawString(70, y_pos, f"Block Number: {getattr(doc, 'block_number', 'Pending')}")
 
@@ -229,21 +237,17 @@ async def generate_signed_pdf(doc) -> str:
         y_pos -= 20
 
         # Truncate URLs for display
-        if doc.arweave_file_url:
-            file_url_display = (
-                doc.arweave_file_url[:50] + "..."
-                if len(doc.arweave_file_url) > 50
-                else doc.arweave_file_url
-            )
+        file_url = getattr(doc, "arweave_file_url", None)
+        if file_url:
+            file_url_str = str(file_url)
+            file_url_display = file_url_str[:50] + "..." if len(file_url_str) > 50 else file_url_str
             c.drawString(70, y_pos, f"File URL: {file_url_display}")
             y_pos -= 20
 
-        if doc.arweave_metadata_url:
-            meta_url_display = (
-                doc.arweave_metadata_url[:50] + "..."
-                if len(doc.arweave_metadata_url) > 50
-                else doc.arweave_metadata_url
-            )
+        meta_url = getattr(doc, "arweave_metadata_url", None)
+        if meta_url:
+            meta_url_str = str(meta_url)
+            meta_url_display = meta_url_str[:50] + "..." if len(meta_url_str) > 50 else meta_url_str
             c.drawString(70, y_pos, f"Metadata URL: {meta_url_display}")
             y_pos -= 20
 
@@ -259,8 +263,9 @@ async def generate_signed_pdf(doc) -> str:
     c.drawString(70, y_pos, "Scan to view on blockchain explorer:")
 
     # Generate QR code
-    if doc.transaction_hash:
-        qr_url = f"https://polygonscan.com/tx/{doc.transaction_hash}"
+    tx_hash = getattr(doc, "transaction_hash", None)
+    if tx_hash:
+        qr_url = f"https://polygonscan.com/tx/{tx_hash}"
         qr_bytes = await _generate_qr_code(qr_url)
 
         # Add QR code to PDF
@@ -345,7 +350,7 @@ async def _generate_qr_code(url: str) -> bytes:
 
     # Convert to bytes
     img_buffer = BytesIO()
-    img.save(img_buffer, format="PNG")
+    img.save(img_buffer, "PNG")  # PIL Image.save accepts format as positional arg
     img_buffer.seek(0)
 
     return img_buffer.read()
@@ -398,6 +403,7 @@ async def _read_signing_key(settings) -> Optional[str]:
         if key_path.exists():
             # Check file permissions for security
             import stat
+
             file_stat = key_path.stat()
             file_mode = file_stat.st_mode
 
@@ -460,6 +466,34 @@ async def _create_certificate_signature(data: dict, private_key_hex: str) -> str
 
     # Convert signature to hex
     return "0x" + signature.hex()
+
+
+async def verify_certificate(certificate_path: str, public_key_hex: str) -> bool:
+    """
+    Verify certificate signature and integrity.
+
+    Loads a certificate from file and verifies its digital signature against the provided public key.
+
+    Args:
+        certificate_path: Path to the JSON certificate file
+        public_key_hex: Hex-encoded ECDSA public key for verification
+
+    Returns:
+        True if certificate is valid and signature verifies, False otherwise
+
+    Raises:
+        FileNotFoundError: If certificate file doesn't exist
+        json.JSONDecodeError: If certificate file is not valid JSON
+    """
+    # Load certificate from file
+    with open(certificate_path, "r") as f:
+        cert_data = json.load(f)
+
+    # Extract signature
+    signature_hex = cert_data.pop("signature")  # Remove signature from data for verification
+
+    # Verify signature
+    return await _verify_certificate_signature(cert_data, signature_hex, public_key_hex)
 
 
 async def _verify_certificate_signature(

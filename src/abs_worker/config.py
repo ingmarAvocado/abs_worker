@@ -12,6 +12,7 @@ import os
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
+from typing import Optional, Union
 
 
 class BlockchainSettings(BaseSettings):
@@ -98,25 +99,87 @@ class CertificateSettings(BaseSettings):
     )
 
     storage_path: str = Field(
+        default="/tmp/certificates",  # Default for development
         description="Directory path for storing generated certificates (auto-created if missing)",
     )
-    signing_key_path: str = Field(
+    signing_key_path: Union[str, None] = Field(
+        default=None,
         description="File path to ECDSA signing key (must exist with secure permissions)",
+    )
+    signing_key_hex: Union[str, None] = Field(
+        default=None,
+        description="Hex-encoded ECDSA private key (alternative to signing_key_path)",
+    )
+    certificate_version: str = Field(
+        default="1.0",
+        description="Version string for generated certificates",
     )
 
     @field_validator("signing_key_path")
     @classmethod
-    def validate_signing_key_path(cls, v: str) -> str:
+    def validate_signing_key_path(cls, v: Union[str, None]) -> Union[str, None]:
         """
         Validate signing key file exists and is readable.
 
         Raises:
             ValueError: If file doesn't exist or isn't readable
         """
+        if v is None or v == "":
+            return v  # Allow None/empty for optional configuration
         if not os.path.exists(v):
             raise ValueError(f"Signing key path does not exist: {v}")
         if not os.access(v, os.R_OK):
             raise ValueError(f"Signing key path is not readable: {v}")
+        return v
+
+    @field_validator("signing_key_hex")
+    @classmethod
+    def validate_signing_key_hex(cls, v: Union[str, None]) -> Union[str, None]:
+        """
+        Validate hex-encoded signing key format and length.
+
+        Must be a valid hex string representing a 32-byte (256-bit) ECDSA private key.
+
+        Raises:
+            ValueError: If key format or length is invalid
+        """
+        if v is None or v == "":  # Empty is allowed (will use file path instead)
+            return v
+
+        # Remove 0x prefix if present
+        key_hex = v[2:] if v.startswith("0x") else v
+
+        # Check if valid hex
+        try:
+            bytes.fromhex(key_hex)
+        except ValueError:
+            raise ValueError("Signing key must be valid hexadecimal")
+
+        # Check length (32 bytes = 64 hex chars)
+        if len(key_hex) != 64:
+            raise ValueError(
+                f"Signing key must be 32 bytes (64 hex characters), got {len(key_hex)}"
+            )
+
+        return key_hex  # Return normalized version without 0x prefix
+
+    @field_validator("certificate_version")
+    @classmethod
+    def validate_certificate_version(cls, v: str) -> str:
+        """
+        Validate certificate version format.
+
+        Should be a semantic version string (e.g., "1.0", "2.1.0").
+
+        Raises:
+            ValueError: If version format is invalid
+        """
+        import re
+
+        if not re.match(r"^\d+\.\d+(\.\d+)?$", v):
+            raise ValueError(
+                f"Certificate version must be semantic version (e.g., '1.0'), got '{v}'"
+            )
         return v
 
     @field_validator("storage_path")
@@ -135,9 +198,7 @@ class CertificateSettings(BaseSettings):
             try:
                 os.makedirs(v, exist_ok=True)
             except OSError as e:
-                raise ValueError(
-                    f"Cannot create certificate storage path: {v} - {e}"
-                ) from e
+                raise ValueError(f"Cannot create certificate storage path: {v} - {e}") from e
 
         # Verify write permissions
         if not os.access(v, os.W_OK):
