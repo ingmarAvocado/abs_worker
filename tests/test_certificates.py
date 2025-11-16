@@ -50,14 +50,18 @@ class TestGenerateSignedJson:
         pass
 
     @pytest.mark.asyncio
-    async def test_json_certificate_saved_to_file(self, mock_document, worker_settings, monkeypatch):
+    async def test_json_certificate_saved_to_file(
+        self, mock_document, worker_settings, monkeypatch
+    ):
         """Test that JSON certificate is saved to correct path"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: worker_settings)
         # TODO: Implement with file system verification
         pass
 
     @pytest.mark.asyncio
-    async def test_json_certificate_is_valid_json(self, mock_document, worker_settings, monkeypatch):
+    async def test_json_certificate_is_valid_json(
+        self, mock_document, worker_settings, monkeypatch
+    ):
         """Test that generated certificate is valid JSON"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: worker_settings)
         # TODO: Implement with JSON parsing verification
@@ -104,7 +108,9 @@ class TestGenerateSignedPdf:
         pass
 
     @pytest.mark.asyncio
-    async def test_nft_pdf_includes_arweave_links(self, mock_nft_document, worker_settings, monkeypatch):
+    async def test_nft_pdf_includes_arweave_links(
+        self, mock_nft_document, worker_settings, monkeypatch
+    ):
         """Test that NFT PDF includes Arweave links"""
         monkeypatch.setattr("abs_worker.certificates.get_settings", lambda: worker_settings)
         # TODO: Implement with PDF content verification

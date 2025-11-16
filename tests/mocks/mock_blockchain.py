@@ -46,6 +46,18 @@ class NotarizationResult:
         self.transaction_hash = transaction_hash
 
 
+class NftMintResult:
+    """Mock result object returned by mint_nft_from_file"""
+
+    def __init__(
+        self, transaction_hash: str, token_id: int, arweave_file_url: str, arweave_metadata_url: str
+    ):
+        self.transaction_hash = transaction_hash
+        self.token_id = token_id
+        self.arweave_file_url = arweave_file_url
+        self.arweave_metadata_url = arweave_metadata_url
+
+
 class MockBlockchain:
     """Mock blockchain interface matching abs_blockchain interface"""
 
@@ -89,6 +101,30 @@ class MockBlockchain:
         }
 
         return tx_hash
+
+    async def mint_nft_from_file(
+        self, file_path: str, file_hash: str, metadata: dict
+    ) -> NftMintResult:
+        """Mock mint_nft_from_file - returns NftMintResult with automatic Arweave upload"""
+        tx_hash = f"0x{self.next_tx_id:064x}"
+        self.next_tx_id += 1
+        token_id = self.next_tx_id  # Use next_tx_id as token_id for simplicity
+        arweave_file_url = f"https://arweave.net/{random.randint(100000, 999999)}"
+        arweave_metadata_url = f"https://arweave.net/{random.randint(100000, 999999)}"
+
+        self.transactions[tx_hash] = {
+            "type": "mint_nft_from_file",
+            "file_path": file_path,
+            "file_hash": file_hash,
+            "metadata": metadata,
+            "token_id": token_id,
+            "arweave_file_url": arweave_file_url,
+            "arweave_metadata_url": arweave_metadata_url,
+            "block_number": self.current_block,
+            "status": 1,  # Success
+        }
+
+        return NftMintResult(tx_hash, token_id, arweave_file_url, arweave_metadata_url)
 
     async def upload_to_arweave(self, file_data: bytes, content_type: str) -> str:
         """Mock upload_to_arweave - returns fake Arweave URL"""

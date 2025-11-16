@@ -37,7 +37,7 @@ class TestProcessHashNotarization:
     @pytest.mark.asyncio
     async def test_successful_hash_notarization(self, mock_document, monkeypatch, worker_settings):
         """Test complete hash notarization workflow"""
-        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+        from tests.mocks.mock_orm import MockDocumentRepository, MockAsyncSession
         from tests.mocks.mock_blockchain import MockBlockchain
         from tests.mocks.mock_utils import MockLogger
 
@@ -93,7 +93,7 @@ class TestProcessHashNotarization:
     @pytest.mark.asyncio
     async def test_certificates_generated(self, mock_document, monkeypatch, worker_settings):
         """Test that certificates are generated when enabled"""
-        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+        from tests.mocks.mock_orm import MockDocumentRepository, MockAsyncSession
         from tests.mocks.mock_blockchain import MockBlockchain
         from tests.mocks.mock_utils import MockLogger
 
@@ -214,7 +214,9 @@ class TestProcessHashNotarization:
             await process_hash_notarization(mock_client, mock_document.id)
 
     @pytest.mark.asyncio
-    async def test_hash_notarization_monitoring_failure(self, mock_document, monkeypatch, worker_settings):
+    async def test_hash_notarization_monitoring_failure(
+        self, mock_document, monkeypatch, worker_settings
+    ):
         """Test handling of transaction monitoring failures"""
         from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
         from tests.mocks.mock_blockchain import MockBlockchain
@@ -267,7 +269,9 @@ class TestProcessHashNotarization:
         assert updated_doc.status.value == "error"
 
     @pytest.mark.asyncio
-    async def test_hash_notarization_certificate_failure(self, mock_document, monkeypatch, worker_settings):
+    async def test_hash_notarization_certificate_failure(
+        self, mock_document, monkeypatch, worker_settings
+    ):
         """Test handling of certificate generation failures"""
         from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
         from tests.mocks.mock_blockchain import MockBlockchain
@@ -351,14 +355,14 @@ class TestProcessNftNotarization:
 
         # Should attempt to run but fail due to missing database setup
         # This tests that the function signature and basic structure work
+        mock_client = type("MockClient", (), {})()
         with pytest.raises(Exception):  # Will fail due to database connection
-            await process_nft_notarization(doc_id)
+            await process_nft_notarization(mock_client, doc_id)
 
-    @pytest.mark.skip(reason="NFT notarization not yet implemented - TODO: Issue #7")
     @pytest.mark.asyncio
     async def test_successful_nft_minting(self, mock_nft_document, monkeypatch):
         """Test complete NFT minting workflow"""
-        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+        from tests.mocks.mock_orm import MockDocumentRepository, MockAsyncSession
         from tests.mocks.mock_blockchain import MockBlockchain
         from tests.mocks.mock_utils import MockLogger
 
@@ -399,6 +403,7 @@ class TestProcessNftNotarization:
                 {
                     "upload_to_arweave": blockchain.upload_to_arweave,
                     "mint_nft": blockchain.mint_nft,
+                    "mint_nft_from_file": blockchain.mint_nft_from_file,
                 },
             )()
             monkeypatch.setattr("abs_worker.notarization.BlockchainClient", lambda: mock_client)
@@ -421,7 +426,7 @@ class TestProcessNftNotarization:
             monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
             # Execute NFT minting
-            await process_nft_notarization(mock_nft_document.id)
+            await process_nft_notarization(mock_client, mock_nft_document.id)
 
             # Verify document status progression
             updated_doc = repo.documents[mock_nft_document.id]
@@ -438,12 +443,10 @@ class TestProcessNftNotarization:
             # Clean up temp file
             os.unlink(temp_file_path)
 
-    @pytest.mark.skip(reason="NFT notarization not yet implemented - TODO: Issue #7")
     @pytest.mark.asyncio
     async def test_arweave_upload_error(self, mock_nft_document, monkeypatch):
         """Test handling of Arweave upload errors"""
         from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
-        from tests.mocks.mock_blockchain import MockBlockchain
         from tests.mocks.mock_utils import MockLogger
         import tempfile
         import os
@@ -469,6 +472,9 @@ class TestProcessNftNotarization:
 
                 async def mint_nft(self, *args, **kwargs):
                     return {"transactionHash": "0xabc123"}
+
+                async def mint_nft_from_file(self, *args, **kwargs):
+                    raise Exception("Arweave upload failed: network timeout")
 
             # Mock dependencies
             from contextlib import asynccontextmanager
@@ -500,8 +506,9 @@ class TestProcessNftNotarization:
             monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
             # Should raise error when Arweave upload fails
+            client = FailingArweaveClient()
             with pytest.raises(Exception, match="Arweave upload failed"):
-                await process_nft_notarization(mock_nft_document.id)
+                await process_nft_notarization(client, mock_nft_document.id)
 
             # Verify error was handled
             assert len(error_captured) == 1
@@ -515,7 +522,6 @@ class TestProcessNftNotarization:
         finally:
             os.unlink(temp_file_path)
 
-    @pytest.mark.skip(reason="NFT notarization not yet implemented - TODO: Issue #7")
     @pytest.mark.asyncio
     async def test_nft_minting_error(self, mock_nft_document, monkeypatch):
         """Test handling of NFT minting errors"""
@@ -548,6 +554,9 @@ class TestProcessNftNotarization:
                 async def mint_nft(self, owner_address, metadata_uri, token_id):
                     raise Exception("NFT minting failed: contract execution reverted")
 
+                async def mint_nft_from_file(self, *args, **kwargs):
+                    raise Exception("NFT minting failed: contract execution reverted")
+
             # Mock dependencies
             from contextlib import asynccontextmanager
 
@@ -578,8 +587,9 @@ class TestProcessNftNotarization:
             monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
             # Should raise error when NFT minting fails
+            client = FailingMintClient()
             with pytest.raises(Exception, match="NFT minting failed"):
-                await process_nft_notarization(mock_nft_document.id)
+                await process_nft_notarization(client, mock_nft_document.id)
 
             # Verify error was handled
             assert len(error_captured) == 1
@@ -593,11 +603,10 @@ class TestProcessNftNotarization:
         finally:
             os.unlink(temp_file_path)
 
-    @pytest.mark.skip(reason="NFT notarization not yet implemented - TODO: Issue #7")
     @pytest.mark.asyncio
     async def test_nft_document_updated_correctly(self, mock_nft_document, monkeypatch):
         """Test that NFT document is updated with all required fields"""
-        from tests.mocks.mock_orm import MockDocumentRepository, DocStatus, MockAsyncSession
+        from tests.mocks.mock_orm import MockDocumentRepository, MockAsyncSession
         from tests.mocks.mock_blockchain import MockBlockchain
         from tests.mocks.mock_utils import MockLogger
         import tempfile
@@ -638,6 +647,7 @@ class TestProcessNftNotarization:
                 {
                     "upload_to_arweave": blockchain.upload_to_arweave,
                     "mint_nft": blockchain.mint_nft,
+                    "mint_nft_from_file": blockchain.mint_nft_from_file,
                 },
             )()
             monkeypatch.setattr("abs_worker.notarization.BlockchainClient", lambda: mock_client)
@@ -660,7 +670,7 @@ class TestProcessNftNotarization:
             monkeypatch.setattr("abs_worker.notarization.logger", logger)
 
             # Execute NFT minting
-            await process_nft_notarization(mock_nft_document.id)
+            await process_nft_notarization(mock_client, mock_nft_document.id)
 
             # Verify ALL NFT-specific fields are updated correctly
             updated_doc = repo.documents[mock_nft_document.id]
@@ -695,7 +705,7 @@ class TestProcessNftNotarization:
             ), "signed_pdf_path must match expected path"
 
             # Verify status is ON_CHAIN
-            assert updated_doc.status == DocStatus.ON_CHAIN, "status must be ON_CHAIN"
+            assert updated_doc.status.value == "on_chain", "status must be ON_CHAIN"
 
             # Verify session was committed
             assert session.committed is True, "session must be committed"

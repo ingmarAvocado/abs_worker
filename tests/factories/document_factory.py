@@ -80,7 +80,9 @@ class DocumentFactory(BaseFactory):
         """Create a document with error status."""
         defaults = {
             "status": DocStatus.ERROR,
-            "error_message": kwargs.pop("error_message", f"Processing error: {cls.random_string(30)}"),
+            "error_message": kwargs.pop(
+                "error_message", f"Processing error: {cls.random_string(30)}"
+            ),
         }
         defaults.update(kwargs)
         return await cls.create(session, owner=owner, **defaults)
